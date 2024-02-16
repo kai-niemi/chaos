@@ -1,5 +1,15 @@
 package io.roach.chaos;
 
+import com.zaxxer.hikari.HikariDataSource;
+import io.roach.chaos.support.ConnectionTemplate;
+import io.roach.chaos.support.TransactionCallback;
+import io.roach.chaos.support.TransactionTemplate;
+import io.roach.chaos.support.Tuple;
+import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.sql.DataSource;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
@@ -23,19 +33,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
-import javax.sql.DataSource;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.zaxxer.hikari.HikariDataSource;
-
-import io.roach.chaos.support.ConnectionTemplate;
-import io.roach.chaos.support.TransactionCallback;
-import io.roach.chaos.support.TransactionTemplate;
-import io.roach.chaos.support.Tuple;
-import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder;
-
 public class Application {
     private static final Logger logger = LoggerFactory.getLogger(Application.class);
 
@@ -45,7 +42,7 @@ public class Application {
         System.out.println("Either --sfu or --cas required for correct execution in RC.");
         System.out.println("Neither --sfu or --cas required for correct execution in 1SR.");
         System.out.println();
-        System.out.println("Workload options:");
+        System.out.println("Workload options include:");
         System.out.println("--rc                  read-committed isolation (default is 1SR)");
         System.out.println("--sfu                 pessimistic locking using select-for-update (default is false)");
         System.out.println("--cas                 optimistic locking using CAS (default is false)");
@@ -54,17 +51,15 @@ public class Application {
         System.out.println("--threads <num>       number of threads (default is # host vCPUs)");
         System.out.println("--iterations <num>    number of cycles to run (default is 1K)");
         System.out.println("--accounts <num>      number of accounts to create and randomize between (default is 50K)");
-        System.out.println("--selection <num>     number of accounts to randomize between (default is 500 or 1%)");
-        System.out.println("--contention <level>  contention level (default is 6, must be multiple of 2)");
+        System.out.println("--selection <num>     number of accounts to randomize between (default is 500 or 1% of accounts)");
+        System.out.println("--contention <level>  contention level (default is 8, must be multiple of 2)");
         System.out.println();
-        System.out.println("Connection options:");
-        System.out.println("--url                 datasource URL");
-        System.out.println("--user                datasource user name");
-        System.out.println("--password            datasource password");
-
+        System.out.println("Connection options include:");
+        System.out.println("--url                 datasource URL (jdbc:postgresql://localhost:26257/defaultdb?sslmode=disable)");
+        System.out.println("--user                datasource user name (root)");
+        System.out.println("--password            datasource password (<empty>)");
         System.out.println();
         System.out.println(reason);
-
         System.exit(1);
     }
 
@@ -103,23 +98,59 @@ public class Application {
                 } else if (arg.equals("--cas") || arg.equals("--compare-and-set")) {
                     cas.set(true);
                 } else if (arg.equals("--contention")) {
+                    if (argsList.isEmpty()) {
+                        printUsageAndQuit("Expected value");
+                    }
                     level.set(Integer.parseInt(argsList.pop()));
                     if (level.get() % 2 != 0) {
                         printUsageAndQuit("Contention level must be a multiple of 2");
                     }
                 } else if (arg.equals("--threads")) {
+                    if (argsList.isEmpty()) {
+                        printUsageAndQuit("Expected value");
+                    }
                     workers = Integer.parseInt(argsList.pop());
+                    if (workers <= 0) {
+                        printUsageAndQuit("Workers must be > 0");
+                    }
                 } else if (arg.equals("--iterations")) {
+                    if (argsList.isEmpty()) {
+                        printUsageAndQuit("Expected value");
+                    }
                     iterations = Integer.parseInt(argsList.pop());
+                    if (iterations <= 0) {
+                        printUsageAndQuit("Iterations must be > 0");
+                    }
                 } else if (arg.equals("--accounts")) {
+                    if (argsList.isEmpty()) {
+                        printUsageAndQuit("Expected value");
+                    }
                     numAccounts.set(Integer.parseInt(argsList.pop()));
+                    if (numAccounts.get() <= 0) {
+                        printUsageAndQuit("Accounts must be > 0");
+                    }
                 } else if (arg.equals("--selection")) {
+                    if (argsList.isEmpty()) {
+                        printUsageAndQuit("Expected value");
+                    }
                     selection.set(Integer.parseInt(argsList.pop()));
+                    if (selection.get() <= 0) {
+                        printUsageAndQuit("Selection must be > 0");
+                    }
                 } else if (arg.equals("--url")) {
+                    if (argsList.isEmpty()) {
+                        printUsageAndQuit("Expected value");
+                    }
                     url = argsList.pop();
                 } else if (arg.equals("--user")) {
+                    if (argsList.isEmpty()) {
+                        printUsageAndQuit("Expected value");
+                    }
                     user = argsList.pop();
                 } else if (arg.equals("--password")) {
+                    if (argsList.isEmpty()) {
+                        printUsageAndQuit("Expected value");
+                    }
                     password = argsList.pop();
                 } else if (arg.equals("--help")) {
                     printUsageAndQuit("");
@@ -127,7 +158,7 @@ public class Application {
                     printUsageAndQuit("Unknown parameter: " + arg);
                 }
             } else {
-                printUsageAndQuit("Unknown arg");
+                printUsageAndQuit("Unknown arg: " + arg);
             }
         }
 
@@ -151,13 +182,16 @@ public class Application {
                         .build()
                 : hikariDS;
 
+        String version = ConnectionTemplate.execute(dataSource, conn -> SchemaSupport.selectOne(conn, "select version()"));
+        logger.info("Using %s".formatted(version));
+
         if (!skipCreate) {
             logger.info("Creating schema");
             SchemaSupport.setupSchema(dataSource);
 
             logger.info("Creating %,d accounts in batches".formatted(numAccounts.get()));
             ConnectionTemplate.execute(dataSource, conn -> {
-                SchemaSupport.deleteAccounts(conn);
+                SchemaSupport.update(conn, "TRUNCATE table account");
                 SchemaSupport.createAccounts(conn, new BigDecimal("5000.00"), numAccounts.get());
                 return null;
             });
@@ -169,7 +203,8 @@ public class Application {
                 conn -> Repository.findRandomIDs(conn, selection.get()));
 
         final BigDecimal initialBalance = ConnectionTemplate.execute(dataSource, Repository::readTotalBalance);
-        final String isolationLevel = ConnectionTemplate.execute(dataSource, SchemaSupport::showIsolationLevel);
+        final String isolationLevel = ConnectionTemplate.execute(dataSource,
+                conn -> SchemaSupport.selectOne(conn, "SHOW transaction_isolation"));
 
         final ExecutorService executorService = Executors.newFixedThreadPool(workers);
         final Deque<Future<Void>> futures = new ArrayDeque<>();
@@ -231,6 +266,8 @@ public class Application {
             }
         }
 
+        logger.info("All workers complete");
+
         executorService.shutdownNow();
 
         final Instant stopTime = Instant.now();
@@ -248,30 +285,29 @@ public class Application {
                 .boxed()
                 .toList();
 
-        logger.info("All workers complete");
-
-        System.out.println("Totals >>");
+        System.out.println("<< Totals >>");
         System.out.println("  Execution time: %s".formatted(Duration.between(startTime, stopTime)));
-        System.out.println("  Total commits: %d".formatted(commits));
-        System.out.println("  Total fails: %d".formatted(fail));
-        System.out.println("  Total retries: %d".formatted(totalRetries.get()));
+        System.out.println("  Total commits: %,d".formatted(commits));
+        System.out.println("  Total fails: %,d".formatted(fail));
+        System.out.println("  Total retries: %,d".formatted(totalRetries.get()));
 
-        System.out.println("Timings >>");
-        System.out.println("  Avg time spent in txn: %.2f ms".formatted(summaryStatistics.getAverage()));
-        System.out.println("  Cumulative time spent in txn: %.2f ms".formatted(summaryStatistics.getSum()));
-        System.out.println("  Min time in txn: %.2f ms".formatted(summaryStatistics.getMin()));
-        System.out.println("  Max time in txn: %.2f ms".formatted(summaryStatistics.getMax()));
+        System.out.println("<< Timings >>");
+        System.out.println("  Avg time spent in txn: %.1f ms".formatted(summaryStatistics.getAverage()));
+        System.out.println("  Cumulative time spent in txn: %.0f ms".formatted(summaryStatistics.getSum()));
+        System.out.println("  Min time in txn: %.1f ms".formatted(summaryStatistics.getMin()));
+        System.out.println("  Max time in txn: %.1f ms".formatted(summaryStatistics.getMax()));
         System.out.println("  Tot samples: %d".formatted(summaryStatistics.getCount()));
-        System.out.println("  P95 latency %.0f ms".formatted(percentile(allDurationMillis, .95)));
-        System.out.println("  P99 latency %.0f ms".formatted(percentile(allDurationMillis, .99)));
-        System.out.println("  P99.9 latency %.0f ms".formatted(percentile(allDurationMillis, .999)));
+        System.out.println("  P95 latency %.1f ms".formatted(percentile(allDurationMillis, .95)));
+        System.out.println("  P99 latency %.1f ms".formatted(percentile(allDurationMillis, .99)));
+        System.out.println("  P99.9 latency %.1f ms".formatted(percentile(allDurationMillis, .999)));
 
-        System.out.println("Correctness >>");
+        System.out.println("<< Correctness >>");
         System.out.println("  Using locks (sfu): %s".formatted(lock.get() ? "yes" : "no"));
         System.out.println("  Using CAS: %s".formatted(cas.get() ? "yes" : "no"));
         System.out.println("  Isolation level: %s".formatted(isolationLevel));
+        System.out.println("  Using: %s".formatted(version));
 
-        System.out.println("Verdict >>");
+        System.out.println("<< Verdict >>");
         System.out.println("  Total initial balance: %s".formatted(initialBalance));
         System.out.println("  Total final balance: %s".formatted(finalBalance));
 

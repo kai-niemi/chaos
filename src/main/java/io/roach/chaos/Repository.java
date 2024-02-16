@@ -12,7 +12,10 @@ import io.roach.chaos.support.DataAccessException;
 import io.roach.chaos.support.OptimisticLockException;
 import io.roach.chaos.support.Tuple;
 
-public class Repository {
+public abstract class Repository {
+    private Repository() {
+    }
+
     public static Tuple<BigDecimal, Integer> readBalance(Connection conn, long id, boolean lock)
             throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(

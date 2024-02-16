@@ -1,8 +1,8 @@
 package io.roach.chaos;
 
-import io.roach.chaos.Repository;
 import io.roach.chaos.support.ConnectionTemplate;
 
+import javax.sql.DataSource;
 import java.math.BigDecimal;
 import java.net.URL;
 import java.nio.file.Files;
@@ -16,8 +16,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import javax.sql.DataSource;
 
 public abstract class SchemaSupport {
     private SchemaSupport() {
@@ -65,16 +63,14 @@ public abstract class SchemaSupport {
         }
     }
 
-    public static void deleteAccounts(Connection conn) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "TRUNCATE table account")) {
-            ps.executeUpdate();
+    public static int update(Connection conn, String sql) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            return ps.executeUpdate();
         }
     }
 
-    public static String showIsolationLevel(Connection conn) throws SQLException {
-        try (PreparedStatement ps = conn
-                .prepareStatement("SHOW transaction_isolation");
+    public static String selectOne(Connection conn, String query) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(query);
              ResultSet rs = ps.executeQuery()) {
             if (rs.next()) {
                 return rs.getString(1);

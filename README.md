@@ -56,6 +56,12 @@ account tuples or by reducing the selection of account IDs involved in
 the interleaving. This enables creating a high number of accounts
 spanning many ranges while still causing contention.
 
+## CockroachDB Setup
+
+Ensure that you are using CockroachDB 23.2 or later and then enable RC with:
+
+    SET CLUSTER SETTING sql.txn.read_committed_isolation.enabled = 'true';
+
 ## Build and Run
 
 Install the JDK:
@@ -64,11 +70,11 @@ Ubuntu:
     
     sudo apt-get install openjdk-17-jdk
 
-MacOS:
+MacOS using sdkman:
 
     curl -s "https://get.sdkman.io" | bash
     sdk list java
-    sdk install java 17.0..  
+    sdk install java 17.0 (pick version)  
 
 Build:
 
