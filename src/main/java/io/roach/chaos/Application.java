@@ -40,24 +40,24 @@ public class Application {
     private static final Logger logger = LoggerFactory.getLogger(Application.class);
 
     private static void printUsageAndQuit(String reason) {
-        System.out.println("usage: java -jar chaos.jar [options]");
+        System.out.println("Usage: java -jar chaos.jar [options]");
         System.out.println();
         System.out.println("Either --sfu or --cas required for correct execution in RC.");
         System.out.println("Neither --sfu or --cas required for correct execution in 1SR.");
         System.out.println();
-        System.out.println("workload options:");
-        System.out.println("--rc                  enable read-committed isolation (default is 1SR)");
-        System.out.println("--sfu                 enable pessimistic locking using select-for-update");
-        System.out.println("--cas                 enable optimistic locking using CAS");
-        System.out.println("--debug               enable verbose SQL trace logging (default is false)");
+        System.out.println("Workload options:");
+        System.out.println("--rc                  read-committed isolation (default is 1SR)");
+        System.out.println("--sfu                 pessimistic locking using select-for-update (default is false)");
+        System.out.println("--cas                 optimistic locking using CAS (default is false)");
+        System.out.println("--debug               verbose SQL trace logging (default is false)");
         System.out.println("--skip-create         skip creation of schema and test data (default is false)");
-        System.out.println("--threads <num>       number of threads (default is host vCPUs * 2)");
+        System.out.println("--threads <num>       number of threads (default is # host vCPUs)");
         System.out.println("--iterations <num>    number of cycles to run (default is 1K)");
         System.out.println("--accounts <num>      number of accounts to create and randomize between (default is 50K)");
-        System.out.println("--selection <num>     number of accounts to randomize between (default is 500)");
+        System.out.println("--selection <num>     number of accounts to randomize between (default is 500 or 1%)");
         System.out.println("--contention <level>  contention level (default is 6, must be multiple of 2)");
         System.out.println();
-        System.out.println("connection options:");
+        System.out.println("Connection options:");
         System.out.println("--url                 datasource URL");
         System.out.println("--user                datasource user name");
         System.out.println("--password            datasource password");
