@@ -50,6 +50,7 @@ public class Application {
         System.out.println("--sfu                 enable pessimistic locking using select-for-update");
         System.out.println("--cas                 enable optimistic locking using CAS");
         System.out.println("--debug               enable verbose SQL trace logging (default is false)");
+        System.out.println("--skip-create         skip creation of schema and test data (default is false)");
         System.out.println("--threads <num>       number of threads (default is host vCPUs * 2)");
         System.out.println("--iterations <num>    number of cycles to run (default is 1K)");
         System.out.println("--accounts <num>      number of accounts to create and randomize between (default is 50K)");
