@@ -1,29 +1,57 @@
 # Chaos
 
-A small JDBC app for comparing the semantics of RC and 1SR 
-isolation level in CockroachDB. Specifically by observing 
-application impact in regard to:
+A small JDBC app for comparing the semantics of RC and 1SR isolation 
+level in CockroachDB. Specifically by observing application impact 
+in regard to:
 
 - Retries
 - Performance
 - Correctness (P4 lost update specifically)
 
-The workload contention can be adjusted as well as locking
-strategies to ensure a correct outcome using both isolation
-levels.
+It produces contention by updating overlapping set of keys 
+in a conflicting order which is denied under 1SR but allowed
+under RC and then resulting in P4 lost updates unless a locking
+strategy is applied. That strategy is either optimistic locks
+using a CAS operation or by using `FOR UPDATE` locks.
 
-The workload is subject to P4 lost update anomaly under RC.
+## Schema 
 
-Ex:
+    create table if not exists account
+    (
+        id      int            not null primary key default unordered_unique_rowid(),
+        version int            not null             default 0,
+        balance numeric(19, 2) not null,
+        name    varchar(128)   not null
+    );
 
-    BEGIN; --T1
+## Conflicting operations
+
+Concurrently with N threads:
+
+    BEGIN; 
     SELECT balance from account where id=1;
     SELECT balance from account where id=2;
-    SELECT balance from account where id=3;
-    SELECT balance from account where id=4;
+    UPDATE account set balance=? where id = 1; -- balace @1 + 5
+    UPDATE account set balance=? where id = 2; -- balance @2 - 5
+    COMMIT;
 
-    UPDATE account set balance=? where id = 1; -- (balace + 5)
-    UPDATE account set balance=? (-5) where id = 2;
-    UPDATE account set balance=? (+5) where id = 3;
-    UPDATE account set balance=? (-5) where id = 4;
-    COMMI;
+Which means the interleaving can result in a conflicting ordering,
+something like with only two concurrent transactions (T1 and T2):
+
+    BEGIN; --T1 
+    BEGIN; --T2 
+    SELECT balance from account where id=1; --T1
+    SELECT balance from account where id=1; --T2
+    SELECT balance from account where id=2; --T1
+    UPDATE account set balance=? where id = 1; -- T1
+    SELECT balance from account where id=2; --T2
+    UPDATE account set balance=? where id = 2; -- T1
+    COMMIT; --T1
+    UPDATE account set balance=? where id = 1; -- T2
+    UPDATE account set balance=? where id = 2; -- T2
+    COMMIT; --T2
+
+The contention level can be adjusted by increasing the number of
+account tuples or by reducing the selection of account IDs involved in
+the interleaving. This enables creating a high number of accounts
+spanning many ranges while still causing contention.
