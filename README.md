@@ -55,3 +55,25 @@ The contention level can be adjusted by increasing the number of
 account tuples or by reducing the selection of account IDs involved in
 the interleaving. This enables creating a high number of accounts
 spanning many ranges while still causing contention.
+
+## Build and Run
+
+Install the JDK:
+
+Ubuntu:
+    
+    sudo apt-get install openjdk-17-jdk
+
+MacOS:
+
+    curl -s "https://get.sdkman.io" | bash
+    sdk list java
+    sdk install java 17.0..  
+
+Build:
+
+    ./mvnw clean install
+
+Run:
+
+    java -jar target/chaos.jar --help

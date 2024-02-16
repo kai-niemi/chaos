@@ -52,7 +52,8 @@ public class Application {
         System.out.println("--debug               enable verbose SQL trace logging (default is false)");
         System.out.println("--threads <num>       number of threads (default is host vCPUs * 2)");
         System.out.println("--iterations <num>    number of cycles to run (default is 1K)");
-        System.out.println("--accounts <num>      number of accounts to create and randomize between (default is 250)");
+        System.out.println("--accounts <num>      number of accounts to create and randomize between (default is 50K)");
+        System.out.println("--selection <num>     number of accounts to randomize between (default is 500)");
         System.out.println("--contention <level>  contention level (default is 6, must be multiple of 2)");
         System.out.println();
         System.out.println("connection options:");
@@ -67,13 +68,14 @@ public class Application {
     }
 
     public static void main(String[] args) throws Exception {
-        String url = "jdbc:postgresql://192.168.1.99:26257/test?sslmode=disable";
+//        String url = "jdbc:postgresql://192.168.1.99:26257/test?sslmode=disable";
+        String url = "jdbc:postgresql://localhost:26257/defaultdb?sslmode=disable";
         String user = "root";
         String password = "";
 
         final AtomicBoolean lock = new AtomicBoolean(false);
         final AtomicBoolean cas = new AtomicBoolean(false);
-        boolean readCommitted = true;
+        boolean readCommitted = false;
         boolean debugProxy = false;
         boolean skipCreate = false;
 
@@ -99,7 +101,7 @@ public class Application {
                     lock.set(true);
                 } else if (arg.equals("--cas") || arg.equals("--compare-and-set")) {
                     cas.set(true);
-                } else if (arg.equals("--level")) {
+                } else if (arg.equals("--contention")) {
                     level.set(Integer.parseInt(argsList.pop()));
                     if (level.get() % 2 != 0) {
                         printUsageAndQuit("Contention level must be a multiple of 2");
@@ -112,6 +114,12 @@ public class Application {
                     numAccounts.set(Integer.parseInt(argsList.pop()));
                 } else if (arg.equals("--selection")) {
                     selection.set(Integer.parseInt(argsList.pop()));
+                } else if (arg.equals("--url")) {
+                    url = argsList.pop();
+                } else if (arg.equals("--user")) {
+                    user = argsList.pop();
+                } else if (arg.equals("--password")) {
+                    password = argsList.pop();
                 } else if (arg.equals("--help")) {
                     printUsageAndQuit("");
                 } else {
