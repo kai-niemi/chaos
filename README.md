@@ -1,18 +1,20 @@
 # Chaos
 
-A small JDBC app for comparing the semantics of RC and 1SR isolation 
-level in CockroachDB. Specifically by observing application impact 
-in regard to:
+A small JDBC application for comparing the semantics of RC and 1SR isolation 
+levels in CockroachDB. Specifically by observing the application impact on:
 
 - Retries
 - Performance
-- Correctness (P4 lost update specifically)
+- Correctness (P4 lost update in particular)
 
-It produces contention by updating overlapping set of keys 
-in a conflicting order which is denied under 1SR but allowed
-under RC and then resulting in P4 lost updates unless a locking
-strategy is applied. That strategy is either optimistic locks
-using a CAS operation or by using `FOR UPDATE` locks.
+The application is designed to produce contention by concurrently updating an 
+overlapping set of keys in a conflicting order, which is denied under 1SR 
+but allowed under RC, thus resulting in P4 (lost update) anomalies unless 
+a locking strategy is applied. 
+
+That strategy is either optimistic "locking" 
+through a CAS operation (version increments) or pessimistic locking 
+using actual `FOR UPDATE` locks.
 
 ## Schema 
 
@@ -24,9 +26,13 @@ using a CAS operation or by using `FOR UPDATE` locks.
         name    varchar(128)   not null
     );
 
-## Conflicting operations
+## Conflicting Operations
 
-Concurrently with N threads:
+A brief description of the workload which is concurrently updating the same
+account table with an overlapping set of keys.
+
+It concurrently executes the following statements (at minimum 4) using 
+explicit transactions and N threads:
 
     BEGIN; 
     SELECT balance from account where id=1;
@@ -35,8 +41,12 @@ Concurrently with N threads:
     UPDATE account set balance=? where id = 2; -- balance @2 - 5
     COMMIT;
 
-Which means the interleaving can result in a conflicting ordering,
-something like with only two concurrent transactions (T1 and T2):
+This type of interleaving then hopefully results in a conflicting order 
+of operations causing the database to rollback transactions with a transient, 
+retryable errors (40001 code) when running under 1SR. When running under RC
+it results in lost updates (expected).
+
+Something like the following when using just two concurrent transactions (T1 and T2):
 
     BEGIN; --T1 
     BEGIN; --T2 
@@ -51,10 +61,10 @@ something like with only two concurrent transactions (T1 and T2):
     UPDATE account set balance=? where id = 2; -- T2
     COMMIT; --T2
 
-The contention level can be adjusted by increasing the number of
-account tuples or by reducing the selection of account IDs involved in
-the interleaving. This enables creating a high number of accounts
-spanning many ranges while still causing contention.
+The level of contention can be adjusted by increasing the number of account tuples,
+number of concurrent executors or by reducing the selection of account IDs involved 
+in the interleaving. This allows for creating a high number of accounts spanning 
+many ranges while still being able to cause contention.
 
 ## CockroachDB Setup
 
