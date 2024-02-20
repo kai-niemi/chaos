@@ -1,36 +1,25 @@
 package io.roach.chaos;
 
-import com.zaxxer.hikari.HikariDataSource;
-import io.roach.chaos.support.ConnectionTemplate;
-import io.roach.chaos.support.TransactionCallback;
-import io.roach.chaos.support.TransactionTemplate;
-import io.roach.chaos.support.Tuple;
-import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder;
+import io.roach.chaos.support.AnsiColor;
+import io.roach.chaos.support.JdbcUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.DoubleSummaryStatistics;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 public class Application {
@@ -42,18 +31,26 @@ public class Application {
         System.out.println("Either --sfu or --cas required for correct execution in RC.");
         System.out.println("Neither --sfu or --cas required for correct execution in 1SR.");
         System.out.println();
-        System.out.println("Workload options include:");
+        System.out.println("--workload <type>     workload type either 'lost_update' or 'write_skew' (default is lost_update)");
+        System.out.println();
+        System.out.println("Common workload options:");
         System.out.println("--rc                  read-committed isolation (default is 1SR)");
-        System.out.println("--sfu                 pessimistic locking using select-for-update (default is false)");
         System.out.println("--cas                 optimistic locking using CAS (default is false)");
         System.out.println("--debug               verbose SQL trace logging (default is false)");
         System.out.println("--skip-create         skip creation of schema and test data (default is false)");
-        System.out.println("--threads <num>       number of threads (default is # host vCPUs)");
-        System.out.println("--iterations <num>    number of cycles to run (default is 1K)");
+        System.out.println("--jitter              enable exponential backoff jitter (default is false)");
+        System.out.println("                      Skip the jitter for more comparable results between isolation levels.");
+        System.out.println("--threads <num>       max number of threads (default is # host vCPUs x 2)");
+        System.out.println("--iterations <num>    number of cycles to run (default is 1,000)");
         System.out.println("--accounts <num>      number of accounts to create and randomize between (default is 50K)");
         System.out.println("--selection <num>     number of accounts to randomize between (default is 500 or 1% of accounts)");
-        System.out.println("--contention <level>  contention level (default is 8, must be multiple of 2)");
         System.out.println();
+
+        System.out.println("Lost Update options:");
+        System.out.println("--sfu                 pessimistic locking using select-for-update (default is false)");
+        System.out.println("--contention <level>  contention level (default is 8, must be a multiple of 2)");
+        System.out.println();
+
         System.out.println("Connection options include:");
         System.out.println("--url                 datasource URL (jdbc:postgresql://localhost:26257/defaultdb?sslmode=disable)");
         System.out.println("--user                datasource user name (root)");
@@ -64,94 +61,86 @@ public class Application {
     }
 
     public static void main(String[] args) throws Exception {
-//        String url = "jdbc:postgresql://192.168.1.99:26257/test?sslmode=disable";
-        String url = "jdbc:postgresql://localhost:26257/defaultdb?sslmode=disable";
-        String user = "root";
-        String password = "";
-
-        final AtomicBoolean lock = new AtomicBoolean(false);
-        final AtomicBoolean cas = new AtomicBoolean(false);
-        boolean readCommitted = false;
-        boolean debugProxy = false;
-        boolean skipCreate = false;
-
-        int workers = Runtime.getRuntime().availableProcessors();
-        final AtomicInteger level = new AtomicInteger(8);
-        final AtomicInteger numAccounts = new AtomicInteger(50_000);
-        final AtomicInteger selection = new AtomicInteger(500);
-        int iterations = 1000;
+        Settings settings = new Settings();
+        WorkloadType workloadType = WorkloadType.lost_update;
+//        WorkloadType workloadType = WorkloadType.write_skew;
 
         LinkedList<String> argsList = new LinkedList<>(List.of(args));
         while (!argsList.isEmpty()) {
             String arg = argsList.pop();
             if (arg.startsWith("--")) {
                 if (arg.equals("--debug")) {
-                    debugProxy = true;
+                    settings.debugProxy = true;
                 } else if (arg.equals("--skip-create")) {
-                    skipCreate = true;
+                    settings.skipCreate = true;
+                } else if (arg.equals("--jitter")) {
+                    settings.jitter = true;
                 } else if (arg.equals("--rc") || arg.equals("--read-committed")) {
-                    readCommitted = true;
-                } else if (arg.equals("--1sr") || arg.equals("--serializable")) {
-                    readCommitted = false;
+                    settings.readCommitted = true;
                 } else if (arg.equals("--sfu") || arg.equals("--select-for-update")) {
-                    lock.set(true);
+                    settings.lock = true;
                 } else if (arg.equals("--cas") || arg.equals("--compare-and-set")) {
-                    cas.set(true);
+                    settings.cas = true;
                 } else if (arg.equals("--contention")) {
                     if (argsList.isEmpty()) {
                         printUsageAndQuit("Expected value");
                     }
-                    level.set(Integer.parseInt(argsList.pop()));
-                    if (level.get() % 2 != 0) {
+                    settings.level = Integer.parseInt(argsList.pop());
+                    if (settings.level % 2 != 0) {
                         printUsageAndQuit("Contention level must be a multiple of 2");
                     }
                 } else if (arg.equals("--threads")) {
                     if (argsList.isEmpty()) {
                         printUsageAndQuit("Expected value");
                     }
-                    workers = Integer.parseInt(argsList.pop());
-                    if (workers <= 0) {
+                    settings.workers = Integer.parseInt(argsList.pop());
+                    if (settings.workers <= 0) {
                         printUsageAndQuit("Workers must be > 0");
                     }
                 } else if (arg.equals("--iterations")) {
                     if (argsList.isEmpty()) {
                         printUsageAndQuit("Expected value");
                     }
-                    iterations = Integer.parseInt(argsList.pop());
-                    if (iterations <= 0) {
+                    settings.iterations = Integer.parseInt(argsList.pop());
+                    if (settings.iterations <= 0) {
                         printUsageAndQuit("Iterations must be > 0");
                     }
                 } else if (arg.equals("--accounts")) {
                     if (argsList.isEmpty()) {
                         printUsageAndQuit("Expected value");
                     }
-                    numAccounts.set(Integer.parseInt(argsList.pop()));
-                    if (numAccounts.get() <= 0) {
+                    settings.numAccounts = Integer.parseInt(argsList.pop());
+                    if (settings.numAccounts <= 0) {
                         printUsageAndQuit("Accounts must be > 0");
                     }
                 } else if (arg.equals("--selection")) {
                     if (argsList.isEmpty()) {
                         printUsageAndQuit("Expected value");
                     }
-                    selection.set(Integer.parseInt(argsList.pop()));
-                    if (selection.get() <= 0) {
+                    settings.selection = Integer.parseInt(argsList.pop());
+                    if (settings.selection <= 0) {
                         printUsageAndQuit("Selection must be > 0");
                     }
+                } else if (arg.equals("--workload")) {
+                    if (argsList.isEmpty()) {
+                        printUsageAndQuit("Expected value");
+                    }
+                    workloadType = WorkloadType.valueOf(argsList.pop());
                 } else if (arg.equals("--url")) {
                     if (argsList.isEmpty()) {
                         printUsageAndQuit("Expected value");
                     }
-                    url = argsList.pop();
+                    settings.url = argsList.pop();
                 } else if (arg.equals("--user")) {
                     if (argsList.isEmpty()) {
                         printUsageAndQuit("Expected value");
                     }
-                    user = argsList.pop();
+                    settings.user = argsList.pop();
                 } else if (arg.equals("--password")) {
                     if (argsList.isEmpty()) {
                         printUsageAndQuit("Expected value");
                     }
-                    password = argsList.pop();
+                    settings.password = argsList.pop();
                 } else if (arg.equals("--help")) {
                     printUsageAndQuit("");
                 } else {
@@ -162,98 +151,62 @@ public class Application {
             }
         }
 
-        // Let's go
+        final DataSource dataSource = settings.createDataSource();
 
-        final HikariDataSource hikariDS = new HikariDataSource();
-        hikariDS.setJdbcUrl(url);
-        hikariDS.setUsername(user);
-        hikariDS.setPassword(password);
-        hikariDS.setAutoCommit(true);
-        hikariDS.setMaximumPoolSize(workers);
-        hikariDS.setMinimumIdle(workers);
-        hikariDS.setTransactionIsolation(readCommitted ? "TRANSACTION_READ_COMMITTED" : "TRANSACTION_SERIALIZABLE");
+        final String version = JdbcUtils.execute(dataSource,
+                conn -> JdbcUtils.selectOne(conn, "SELECT version()", String.class));
+        final String isolationLevel = JdbcUtils.execute(dataSource,
+                conn -> JdbcUtils.selectOne(conn, "SHOW transaction_isolation", String.class));
 
-        final DataSource dataSource = debugProxy ?
-                ProxyDataSourceBuilder
-                        .create(hikariDS)
-                        .asJson()
-                        .multiline()
-                        .logQueryBySlf4j()
-                        .build()
-                : hikariDS;
-
-        String version = ConnectionTemplate.execute(dataSource, conn -> SchemaSupport.selectOne(conn, "select version()"));
-        logger.info("Using %s".formatted(version));
-
-        if (!skipCreate) {
-            logger.info("Creating schema");
-            SchemaSupport.setupSchema(dataSource);
-
-            logger.info("Creating %,d accounts in batches".formatted(numAccounts.get()));
-            ConnectionTemplate.execute(dataSource, conn -> {
-                SchemaSupport.update(conn, "TRUNCATE table account");
-                SchemaSupport.createAccounts(conn, new BigDecimal("5000.00"), numAccounts.get());
-                return null;
-            });
+        if (settings.readCommitted && !"read committed".equalsIgnoreCase(isolationLevel)) {
+            output.error("Read-committed is enabled but database default is '%s'".formatted(isolationLevel));
         }
 
-        logger.info("Finding random selection of %,d accounts (%f%%)"
-                .formatted(selection.get(), selection.get() / numAccounts.get() * 100.0));
-        final List<Long> ids = ConnectionTemplate.execute(dataSource,
-                conn -> Repository.findRandomIDs(conn, selection.get()));
+        if (settings.selection > settings.numAccounts) {
+            output.error("Selection (%d) larger than number of accounts (%d)!"
+                    .formatted(settings.selection, settings.numAccounts));
+            settings.selection = settings.numAccounts;
+        }
 
-        final BigDecimal initialBalance = ConnectionTemplate.execute(dataSource, Repository::readTotalBalance);
-        final String isolationLevel = ConnectionTemplate.execute(dataSource,
-                conn -> SchemaSupport.selectOne(conn, "SHOW transaction_isolation"));
+        Workload workload = workloadType.getFactory().get();
+        workload.setup(settings, dataSource);
 
-        final ExecutorService executorService = Executors.newFixedThreadPool(workers);
-        final Deque<Future<Void>> futures = new ArrayDeque<>();
+        output.header("Ramping Up");
+        output.info("Database: %s".formatted(version));
+        output.info("Isolation level: %s".formatted(isolationLevel));
+        output.info("Workload: %s".formatted(workloadType.name()));
+        output.info("Threads: %d".formatted(settings.workers));
+        output.info("Accounts: %d".formatted(settings.numAccounts));
+        output.info("Selection: %d".formatted(settings.selection));
+
+        final ExecutorService executorService = Executors.newFixedThreadPool(settings.workers);
+
+        workload.beforeExecution(output);
+
         final Instant startTime = Instant.now();
 
-        final List<Duration> allDurations = Collections.synchronizedList(new ArrayList<>());
-        final AtomicInteger totalRetries = new AtomicInteger();
+        output.info("Queuing %d workers for %d iterations - please hold"
+                .formatted(settings.workers, settings.iterations));
 
-        final Consumer<List<Duration>> stats = (durations) -> {
-            totalRetries.addAndGet(durations.size() - 1); // More than one duration means at least one retry
-            allDurations.addAll(durations);
-        };
+        final Deque<Future<List<Duration>>> futures = new ArrayDeque<>();
 
-        logger.info("Queuing %d workers for %d iterations - let the games being".formatted(workers, iterations));
-
-        IntStream.rangeClosed(1, iterations)
-                .forEach(value -> futures.add(executorService.submit(() -> {
-                            ThreadLocalRandom random = ThreadLocalRandom.current();
-
-                            List<Tuple<Long, BigDecimal>> legs = new ArrayList<>();
-                            Set<Long> consumed = new HashSet<>();
-
-                            IntStream.rangeClosed(1, Integer.MAX_VALUE)
-                                    .takeWhile(v -> legs.size() != level.get())
-                                    .forEach(leg -> {
-                                        long from = selectRandom(ids);
-                                        long to = selectRandom(ids);
-                                        if (consumed.add(from) && consumed.add(to)) {
-                                            BigDecimal amt = new BigDecimal(random.nextDouble(1, 10))
-                                                    .setScale(2, RoundingMode.HALF_UP);
-                                            legs.add(Tuple.of(from, amt));
-                                            legs.add(Tuple.of(to, amt.negate()));
-                                        }
-                                    });
-
-                            TransactionTemplate.executeWithRetries(dataSource,
-                                    transfer(legs, lock.get(), cas.get()), stats);
-
-                            return null;
-                        }
-                )));
+        IntStream.rangeClosed(1, settings.iterations)
+                .forEach(value -> futures.add(executorService.submit(workload)));
 
         int commits = 0;
         int fail = 0;
+        final List<Duration> allDurations = new ArrayList<>();
+        final AtomicInteger totalRetries = new AtomicInteger();
 
         while (!futures.isEmpty()) {
-            logger.info("Awaiting completion (%d futures remain)".formatted(futures.size()));
+            output.debug("Awaiting completion (%d futures remain)".formatted(futures.size()));
+
             try {
-                futures.pop().get();
+                List<Duration> stats = futures.pop().get();
+
+                totalRetries.addAndGet(stats.size() - 1); // More than one duration means at least one retry
+                allDurations.addAll(stats);
+
                 commits++;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -266,13 +219,7 @@ public class Application {
             }
         }
 
-        logger.info("All workers complete");
-
-        executorService.shutdownNow();
-
         final Instant stopTime = Instant.now();
-
-        final BigDecimal finalBalance = ConnectionTemplate.execute(dataSource, Repository::readTotalBalance);
 
         final DoubleSummaryStatistics summaryStatistics = allDurations
                 .stream()
@@ -285,71 +232,41 @@ public class Application {
                 .boxed()
                 .toList();
 
-        System.out.println("<< Totals >>");
-        System.out.println("  Execution time: %s".formatted(Duration.between(startTime, stopTime)));
-        System.out.println("  Total commits: %,d".formatted(commits));
-        System.out.println("  Total fails: %,d".formatted(fail));
-        System.out.println("  Total retries: %,d".formatted(totalRetries.get()));
+        output.header("Totals");
+        output.info("Args: %s".formatted(Arrays.stream(args).toList()));
+        output.info("Using: %s".formatted(version));
+        output.info("Threads: %s".formatted(settings.workers));
+        output.info("Contention level: %s".formatted(settings.level));
+        output.info("Account selection: %,d of %,d".formatted(settings.selection, settings.numAccounts));
+        output.info("Execution time: %s".formatted(Duration.between(startTime, stopTime)));
+        output.info("Total commits: %,d".formatted(commits));
+        output.info("Total fails: %,d".formatted(fail));
+        output.info("Total retries: %,d".formatted(totalRetries.get()));
 
-        System.out.println("<< Timings >>");
-        System.out.println("  Avg time spent in txn: %.1f ms".formatted(summaryStatistics.getAverage()));
-        System.out.println("  Cumulative time spent in txn: %.0f ms".formatted(summaryStatistics.getSum()));
-        System.out.println("  Min time in txn: %.1f ms".formatted(summaryStatistics.getMin()));
-        System.out.println("  Max time in txn: %.1f ms".formatted(summaryStatistics.getMax()));
-        System.out.println("  Tot samples: %d".formatted(summaryStatistics.getCount()));
-        System.out.println("  P95 latency %.1f ms".formatted(percentile(allDurationMillis, .95)));
-        System.out.println("  P99 latency %.1f ms".formatted(percentile(allDurationMillis, .99)));
-        System.out.println("  P99.9 latency %.1f ms".formatted(percentile(allDurationMillis, .999)));
+        output.header("Timings");
+        output.info("Avg time spent in txn: %.1f ms".formatted(summaryStatistics.getAverage()));
+        output.info("Cumulative time spent in txn: %.0f ms".formatted(summaryStatistics.getSum()));
+        output.info("Min time in txn: %.1f ms".formatted(summaryStatistics.getMin()));
+        output.info("Max time in txn: %.1f ms".formatted(summaryStatistics.getMax()));
+        output.info("Tot samples: %d".formatted(summaryStatistics.getCount()));
+        output.info("P50 latency %.1f ms".formatted(percentile(allDurationMillis, .50)));
+        output.info("P95 latency %.1f ms".formatted(percentile(allDurationMillis, .95)));
+        output.info("P99 latency %.1f ms".formatted(percentile(allDurationMillis, .99)));
+        output.info("P999 latency %.1f ms".formatted(percentile(allDurationMillis, .999)));
 
-        System.out.println("<< Correctness >>");
-        System.out.println("  Using locks (sfu): %s".formatted(lock.get() ? "yes" : "no"));
-        System.out.println("  Using CAS: %s".formatted(cas.get() ? "yes" : "no"));
-        System.out.println("  Isolation level: %s".formatted(isolationLevel));
-        System.out.println("  Using: %s".formatted(version));
-
-        System.out.println("<< Verdict >>");
-        System.out.println("  Total initial balance: %s".formatted(initialBalance));
-        System.out.println("  Total final balance: %s".formatted(finalBalance));
-
-        if (!initialBalance.equals(finalBalance)) {
-            System.out.println("%s != %s (ノಠ益ಠ)ノ彡┻━┻"
-                    .formatted(initialBalance, finalBalance));
-            System.out.println(
-                    "You just lost %s and may want to reconsider your isolation level!! (or use --sfu or --cas)"
-                            .formatted(initialBalance.subtract(finalBalance)));
-        } else {
-            System.out.println("  You are good! ¯\\_(ツ)_/¯̑̑");
+        output.header("Correctness");
+        output.info("Using locks (sfu): %s".formatted(settings.lock ? "yes" : "no"));
+        output.info("Using CAS: %s".formatted(settings.cas ? "yes" : "no"));
+        output.info("Isolation level: %s".formatted(isolationLevel));
+        
+        if (fail > 0) {
+            output.error("There are errors: %d".formatted(fail));
         }
-    }
 
-    private static TransactionCallback<Void> transfer(List<Tuple<Long, BigDecimal>> legs,
-                                                      boolean lock,
-                                                      boolean cas) {
-        return conn -> {
-            BigDecimal checksum = BigDecimal.ZERO;
+        output.header("Outcome");
+        workload.afterExcution(output);
 
-            for (Tuple<Long, BigDecimal> leg : legs) {
-                Tuple<BigDecimal, Integer> balance = Repository.readBalance(conn, leg.getA(), lock);
-
-                if (cas) {
-                    Repository.updateBalanceWithCAS(conn, leg.getA(),
-                            balance.getA().add(leg.getB()), balance.getB());
-                } else {
-                    Repository.updateBalance(conn, leg.getA(),
-                            balance.getA().add(leg.getB()));
-                }
-
-                checksum = checksum.add(leg.getB());
-            }
-
-            if (checksum.compareTo(BigDecimal.ZERO) != 0) {
-                throw new IllegalArgumentException(
-                        "Sum of account legs must equal 0 (got " + checksum.toPlainString() + ")"
-                );
-            }
-
-            return null;
-        };
+        executorService.shutdownNow();
     }
 
     private static double percentile(List<Double> orderedList, double percentile) {
@@ -360,10 +277,28 @@ public class Application {
             int index = (int) Math.ceil(percentile * orderedList.size());
             return orderedList.get(index - 1);
         }
-        return 0;
+        return 0f;
     }
 
-    private static <E> E selectRandom(List<E> collection) {
-        return collection.get(ThreadLocalRandom.current().nextInt(collection.size()));
-    }
+    private static final Output output = new Output() {
+        @Override
+        public void header(String text) {
+            System.out.printf("%s<<%s>>%s\n", AnsiColor.BOLD_BRIGHT_GREEN.getCode(), text, AnsiColor.RESET.getCode());
+        }
+
+        @Override
+        public void debug(String text) {
+            System.out.printf("%s%s%s\n", AnsiColor.BLUE.getCode(), text, AnsiColor.RESET.getCode());
+        }
+
+        @Override
+        public void info(String text) {
+            System.out.printf("%s%s%s\n", AnsiColor.YELLOW.getCode(), text, AnsiColor.RESET.getCode());
+        }
+
+        @Override
+        public void error(String text) {
+            System.out.printf("%s%s%s\n", AnsiColor.RED.getCode(), text, AnsiColor.RESET.getCode());
+        }
+    };
 }
