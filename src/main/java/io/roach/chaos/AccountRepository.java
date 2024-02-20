@@ -192,4 +192,58 @@ public abstract class AccountRepository {
             }
         }
     }
+
+    static void updateBalance(Connection connection,
+                              Account account,
+                              AccountType type,
+                              BigDecimal amount)
+            throws SQLException {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "UPDATE account SET balance = balance - ? " +
+                        "WHERE id = ? AND type=?")) {
+            ps.setBigDecimal(1, amount);
+            ps.setLong(2, account.getId().getId());
+            ps.setObject(3, type.name());
+
+            int rows = ps.executeUpdate();
+            if (rows != 1) {
+                throw new IllegalStateException("Rows affected not 1 but " + rows + " for " + account.getId());
+            }
+        }
+    }
+
+    static void updateBalanceCAS(Connection connection,
+                                 Account account,
+                                 AccountType type,
+                                 BigDecimal amount)
+            throws SQLException {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "UPDATE account SET balance = balance - ?, version = version + 1 " +
+                        "WHERE id = ? AND type=? AND version=?")) {
+            ps.setBigDecimal(1, amount);
+            ps.setLong(2, account.getId().getId());
+            ps.setObject(3, type.name());
+            ps.setInt(4, account.getVersion());
+
+            if (ps.executeUpdate() != 1) {
+                throw new OptimisticLockException("" + account);
+            }
+        }
+    }
+
+    static BigDecimal readTotalBalance(Connection connection, Account.Id id)
+            throws SQLException {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "select sum(balance) from account where id=?")) {
+            ps.setObject(1, id.getId());
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getObject(1, BigDecimal.class);
+                } else {
+                    throw new IllegalStateException("No such account  " + id);
+                }
+            }
+        }
+    }
 }
