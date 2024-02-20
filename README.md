@@ -5,24 +5,26 @@ levels in CockroachDB. Specifically by observing the application impact on:
 
 - Retries (transaction rollbacks with state code 40001)
 - Performance (is RC faster than 1SR or not)
-- Correctness (P4 lost update anomaly in particular)
+- Correctness (P4 lost update and A5B write skew anomalies in particular)
 
 The application is designed to produce contention by concurrently updating an 
 overlapping set of keys in a conflicting order, which is denied under 1SR 
-but allowed under RC, thus resulting in P4 (lost update) anomalies unless 
-a locking strategy is applied. 
-
-That strategy is either optimistic "locking" through a CAS operation (version increments) 
-or pessimistic locking using actual `FOR UPDATE` locks.
+but allowed under RC, thus resulting in P4 (lost update) or A5B (write skew) 
+anomalies unless a locking strategy is applied. 
 
 ## Schema 
 
+    create type if not exists account_type as enum ('credit', 'checking');
+    
     create table if not exists account
     (
-        id      int            not null primary key default unordered_unique_rowid(),
-        version int            not null             default 0,
+        id      int            not null default unordered_unique_rowid(),
+        type    account_type   not null,
+        version int            not null default 0,
         balance numeric(19, 2) not null,
-        name    varchar(128)   not null
+        name    varchar(128)   not null,
+    
+        primary key (id, type)
     );
 
 ## Conflicting Operations
@@ -30,7 +32,9 @@ or pessimistic locking using actual `FOR UPDATE` locks.
 A brief description of the workload which is concurrently updating the same
 account table with an overlapping set of keys.
 
-It concurrently executes the following statements (at minimum 4) using 
+### Lost Update Workload
+
+This workload concurrently executes the following statements (at minimum 4) using 
 explicit transactions and N threads:
 
     BEGIN; 
@@ -64,6 +68,29 @@ The level of contention can be adjusted by increasing the number of account tupl
 number of concurrent executors or by reducing the selection of account IDs involved 
 in the interleaving. This allows for creating a high number of accounts spanning 
 many ranges while still being able to cause contention.
+
+This workload is unsafe in RC unless using optimistic "locks" through a CAS operation 
+(version increments) or by using pessimistic `SELECT .. FOR UPDATE` locks at read time.
+
+### Write Skew Workload
+
+This workload concurrently executes the following statements (with pseudo-code):
+
+    BEGIN; 
+    SELECT sum(balance) total from account where id=<random from selection>; -- expect 2 rows
+    if (total - random_amount > 0) -- app check
+        either:
+            UPDATE account set balance=balance-? where id = 1 and type='checking'; 
+        or:
+            UPDATE account set balance=balance-? where id = 2 and type='credit'; 
+    endif
+    COMMIT;
+
+This workload is unsafe in RC unless using optimistic "locking" through a CAS operation
+(version increments). Pessimistic locks can't be used due to the aggregate `sum` function.
+
+**Hint:** To have a greater chance to observe anomalies in RC, decrease the `--selection` and/or
+increase `--iterations` with 10x.
 
 ## CockroachDB Setup
 
