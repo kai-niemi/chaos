@@ -1,7 +1,7 @@
 package io.roach.chaos;
 
 public interface Output {
-    void debug(String text);
+    void pair(String prefix, String suffix);
 
     void header(String text);
 

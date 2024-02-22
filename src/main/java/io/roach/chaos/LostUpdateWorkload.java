@@ -1,9 +1,5 @@
 package io.roach.chaos;
 
-import io.roach.chaos.support.JdbcUtils;
-import io.roach.chaos.support.TransactionTemplate;
-import io.roach.chaos.support.Tuple;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
@@ -13,6 +9,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.IntStream;
+
+import io.roach.chaos.support.AsciiArt;
+import io.roach.chaos.support.JdbcUtils;
+import io.roach.chaos.support.TransactionTemplate;
+import io.roach.chaos.support.Tuple;
 
 import static io.roach.chaos.AccountRepository.findById;
 import static io.roach.chaos.AccountRepository.findRandomAccounts;
@@ -44,7 +45,7 @@ public class LostUpdateWorkload extends AbstractWorkload {
 
     @Override
     public List<Duration> call() {
-        List<Tuple<Account,BigDecimal>> legs = new ArrayList<>();
+        List<Tuple<Account, BigDecimal>> legs = new ArrayList<>();
 
         Set<Account.Id> consumedIds = new HashSet<>();
 
@@ -71,7 +72,7 @@ public class LostUpdateWorkload extends AbstractWorkload {
                 .executeWithRetries(conn -> {
                     BigDecimal checksum = BigDecimal.ZERO;
 
-                    for (Tuple<Account,BigDecimal> leg : legs) {
+                    for (Tuple<Account, BigDecimal> leg : legs) {
                         Account account = findById(conn, leg.getA().getId(), settings.lock);
 
                         if (settings.cas) {
@@ -98,16 +99,16 @@ public class LostUpdateWorkload extends AbstractWorkload {
     public void afterExcution(Output output) {
         BigDecimal finalBalance = JdbcUtils.execute(dataSource, AccountRepository::sumTotalBalance);
 
-        output.info("Initial total balance: %s".formatted(initialBalance));
-        output.info("Final total balance: %s".formatted(finalBalance));
+        output.pair("Initial total balance:", "%s".formatted(initialBalance));
+        output.pair("Final total balance:", "%s".formatted(finalBalance));
 
         if (!initialBalance.equals(finalBalance)) {
-            output.error("%s != %s (ノಠ益ಠ)ノ彡┻━┻"
-                    .formatted(initialBalance, finalBalance));
+            output.error("%s != %s %s"
+                    .formatted(initialBalance, finalBalance, AsciiArt.flipTableRoughly()));
             output.error("You just lost %s and may want to reconsider your isolation level!! (or use --sfu or --cas)"
                     .formatted(initialBalance.subtract(finalBalance)));
         } else {
-            output.info("You are good! ¯\\_(ツ)_/¯̑̑");
+            output.info("You are good! %s".formatted(AsciiArt.shrug()));
         }
     }
 }

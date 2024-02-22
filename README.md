@@ -138,7 +138,7 @@ Example using read-committed:
     P95 latency 142,0 ms
     P99 latency 189,0 ms
     P99.9 latency 256,0 ms
-    << Correctness >>
+    << Safety >>
     Using locks (sfu): no
     Using CAS: no
     Isolation level: read committed
@@ -166,7 +166,7 @@ Example using serializable:
     P95 latency 159,0 ms
     P99 latency 219,0 ms
     P99.9 latency 298,0 ms
-    << Correctness >>
+    << Safety >>
     Using locks (sfu): no
     Using CAS: no
     Isolation level: serializable

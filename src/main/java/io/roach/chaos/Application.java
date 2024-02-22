@@ -1,11 +1,5 @@
 package io.roach.chaos;
 
-import io.roach.chaos.support.AnsiColor;
-import io.roach.chaos.support.JdbcUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import javax.sql.DataSource;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
@@ -23,6 +17,15 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
+import javax.sql.DataSource;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import io.roach.chaos.support.AnsiColor;
+import io.roach.chaos.support.AsciiArt;
+import io.roach.chaos.support.JdbcUtils;
+
 public class Application {
     private static final Logger logger = LoggerFactory.getLogger(Application.class);
 
@@ -35,11 +38,13 @@ public class Application {
         System.out.println("--debug               verbose SQL trace logging (default is false)");
         System.out.println("--skip-create         skip creation of schema and test data (default is false)");
         System.out.println("--jitter              enable exponential backoff jitter (default is false)");
-        System.out.println("                      Skip the jitter for more comparable results between isolation levels.");
+        System.out.println(
+                "                      Skip the jitter for more comparable results between isolation levels.");
         System.out.println("--threads <num>       max number of threads (default is host vCPUs x 2)");
         System.out.println("--iterations <num>    number of cycles to run (default is 1,000)");
         System.out.println("--accounts <num>      number of accounts to create and randomize between (default is 50K)");
-        System.out.println("--selection <num>     number of accounts to randomize between (default is 500 or 1% of accounts)");
+        System.out.println(
+                "--selection <num>     number of accounts to randomize between (default is 500 or 1% of accounts)");
         System.out.println();
 
         System.out.println("Lost update workload options:");
@@ -48,7 +53,8 @@ public class Application {
         System.out.println();
 
         System.out.println("Connection options include:");
-        System.out.println("--url                 datasource URL (jdbc:postgresql://localhost:26257/defaultdb?sslmode=disable)");
+        System.out.println(
+                "--url                 datasource URL (jdbc:postgresql://localhost:26257/defaultdb?sslmode=disable)");
         System.out.println("--user                datasource user name (root)");
         System.out.println("--password            datasource password (<empty>)");
         System.out.println();
@@ -126,6 +132,8 @@ public class Application {
                         printUsageAndQuit("Expected value");
                     }
                     settings.url = argsList.pop();
+                } else if (arg.equals("--dev")) {
+                    settings.url = "jdbc:postgresql://192.168.1.99:26257/defaultdb?sslmode=disable";
                 } else if (arg.equals("--user")) {
                     if (argsList.isEmpty()) {
                         printUsageAndQuit("Expected value");
@@ -172,14 +180,14 @@ public class Application {
         Workload workload = workloadType.getFactory().get();
         workload.setup(settings, dataSource);
 
-        output.info("Database: %s".formatted(version));
-        output.info("Isolation level: %s".formatted(isolationLevel));
-        output.info("Workload: %s".formatted(workloadType.name()));
-        output.info("Threads: %d".formatted(settings.workers));
-        output.info("Accounts: %d".formatted(settings.numAccounts));
-        output.info("Selection: %d".formatted(settings.selection));
-        output.info("Queuing %d workers for %d iterations - please hold"
+        output.info("Queuing max %d workers for %d iterations - awaiting completion"
                 .formatted(settings.workers, settings.iterations));
+        output.pair("Database:", "%s".formatted(version));
+        output.pair("Isolation level:", "%s".formatted(isolationLevel));
+        output.pair("Workload:", "%s".formatted(workloadType.name()));
+        output.pair("Threads:", "%d".formatted(settings.workers));
+        output.pair("Accounts:", "%d".formatted(settings.numAccounts));
+        output.pair("Selection:", "%d".formatted(settings.selection));
 
         workload.beforeExecution(output);
 
@@ -196,7 +204,11 @@ public class Application {
         final AtomicInteger totalRetries = new AtomicInteger();
 
         while (!futures.isEmpty()) {
-            output.debug("Awaiting completion (%d futures remain)".formatted(futures.size()));
+            System.out.printf("\r%s%s%s",
+                    AnsiColor.BOLD_BRIGHT_PURPLE.getCode(),
+                    AsciiArt.progressBar(settings.iterations, settings.iterations - futures.size(),
+                            futures.size() + " futures remain"),
+                    AnsiColor.RESET.getCode());
 
             try {
                 List<Duration> stats = futures.pop().get();
@@ -230,34 +242,34 @@ public class Application {
                 .toList();
 
         output.header("Totals");
-        output.info("Args: %s".formatted(Arrays.stream(args).toList()));
-        output.info("Using: %s".formatted(version));
-        output.info("Threads: %s".formatted(settings.workers));
-        output.info("Contention level: %s".formatted(settings.level));
-        output.info("Account selection: %,d of %,d".formatted(settings.selection, settings.numAccounts));
-        output.info("Execution time: %s".formatted(Duration.between(startTime, stopTime)));
-        output.info("Total commits: %,d".formatted(commits));
-        output.info("Total fails: %,d".formatted(fail));
-        output.info("Total retries: %,d".formatted(totalRetries.get()));
+        output.pair("Args:", "%s".formatted(Arrays.stream(args).toList()));
+        output.pair("Using:", "%s".formatted(version));
+        output.pair("Threads:", "%s".formatted(settings.workers));
+        output.pair("Contention level:", "%s".formatted(settings.level));
+        output.pair("Account selection:", "%,d of %,d".formatted(settings.selection, settings.numAccounts));
+        output.pair("Execution time:", "%s".formatted(Duration.between(startTime, stopTime)));
+        output.pair("Total commits:", "%,d".formatted(commits));
+        output.pair("Total fails:", "%,d".formatted(fail));
+        output.pair("Total retries:", "%,d".formatted(totalRetries.get()));
 
         output.header("Timings");
-        output.info("Avg time spent in txn: %.1f ms".formatted(summaryStatistics.getAverage()));
-        output.info("Cumulative time spent in txn: %.0f ms".formatted(summaryStatistics.getSum()));
-        output.info("Min time in txn: %.1f ms".formatted(summaryStatistics.getMin()));
-        output.info("Max time in txn: %.1f ms".formatted(summaryStatistics.getMax()));
-        output.info("Tot samples: %d".formatted(summaryStatistics.getCount()));
-        output.info("P50 latency %.1f ms".formatted(percentile(allDurationMillis, .50)));
-        output.info("P95 latency %.1f ms".formatted(percentile(allDurationMillis, .95)));
-        output.info("P99 latency %.1f ms".formatted(percentile(allDurationMillis, .99)));
-        output.info("P999 latency %.1f ms".formatted(percentile(allDurationMillis, .999)));
+        output.pair("Avg time in txn:", "%.1f ms".formatted(summaryStatistics.getAverage()));
+        output.pair("Cumulative time in txn:", "%.0f ms".formatted(summaryStatistics.getSum()));
+        output.pair("Min time in txn:", "%.1f ms".formatted(summaryStatistics.getMin()));
+        output.pair("Max time in txn:", "%.1f ms".formatted(summaryStatistics.getMax()));
+        output.pair("Tot samples:", "%d".formatted(summaryStatistics.getCount()));
+        output.pair("P50 latency:", "%.1f ms".formatted(percentile(allDurationMillis, .50)));
+        output.pair("P95 latency:", "%.1f ms".formatted(percentile(allDurationMillis, .95)));
+        output.pair("P99 latency:", "%.1f ms".formatted(percentile(allDurationMillis, .99)));
+        output.pair("P999 latency:", "%.1f ms".formatted(percentile(allDurationMillis, .999)));
 
-        output.header("Correctness");
-        output.info("Using locks (sfu): %s".formatted(settings.lock ? "yes" : "no"));
-        output.info("Using CAS: %s".formatted(settings.cas ? "yes" : "no"));
-        output.info("Isolation level: %s".formatted(isolationLevel));
-        
+        output.header("Safety");
+        output.pair("Using locks (sfu):", "%s".formatted(settings.lock ? "yes" : "no"));
+        output.pair("Using CAS:", "%s".formatted(settings.cas ? "yes" : "no"));
+        output.pair("Isolation level:", "%s".formatted(isolationLevel));
+
         if (fail > 0) {
-            output.error("There are errors: %d".formatted(fail));
+            output.error("There are non-transient errors invalidating outcome: %d".formatted(fail));
         }
 
         output.header("Outcome");
@@ -280,12 +292,14 @@ public class Application {
     private static final Output output = new Output() {
         @Override
         public void header(String text) {
-            System.out.printf("%s<<%s>>%s\n", AnsiColor.BOLD_BRIGHT_GREEN.getCode(), text, AnsiColor.RESET.getCode());
+            System.out.printf("%s<<%s>>%s\n", AnsiColor.BOLD_BRIGHT_CYAN.getCode(), text, AnsiColor.RESET.getCode());
         }
 
         @Override
-        public void debug(String text) {
-            System.out.printf("%s%s%s\n", AnsiColor.BLUE.getCode(), text, AnsiColor.RESET.getCode());
+        public void pair(String prefix, String suffix) {
+            System.out.printf("%s%20s%s ", AnsiColor.BOLD_BRIGHT_GREEN.getCode(), prefix, AnsiColor.RESET.getCode());
+            System.out.printf("%s%s%s", AnsiColor.BOLD_BRIGHT_YELLOW.getCode(), suffix, AnsiColor.RESET.getCode());
+            System.out.println();
         }
 
         @Override

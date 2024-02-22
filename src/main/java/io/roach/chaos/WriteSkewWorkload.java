@@ -1,8 +1,5 @@
 package io.roach.chaos;
 
-import io.roach.chaos.support.JdbcUtils;
-import io.roach.chaos.support.TransactionTemplate;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.PreparedStatement;
@@ -11,14 +8,21 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import io.roach.chaos.support.AsciiArt;
+import io.roach.chaos.support.JdbcUtils;
+import io.roach.chaos.support.TransactionTemplate;
 
 import static io.roach.chaos.AccountRepository.findRandomAccounts;
 import static io.roach.chaos.support.RandomData.selectRandom;
 
 public class WriteSkewWorkload extends AbstractWorkload {
     private final List<Account> accountSelection = new ArrayList<>();
+
+    private final AtomicInteger accept = new AtomicInteger();
+
+    private final AtomicInteger reject = new AtomicInteger();
 
     @Override
     public void beforeExecution(Output output) throws Exception {
@@ -33,6 +37,9 @@ public class WriteSkewWorkload extends AbstractWorkload {
 
         this.accountSelection.addAll(JdbcUtils.execute(dataSource,
                 conn -> findRandomAccounts(conn, settings.selection)));
+
+        this.accept.set(0);
+        this.reject.set(0);
     }
 
     @Override
@@ -51,6 +58,7 @@ public class WriteSkewWorkload extends AbstractWorkload {
                     // Invariant check - can't use SFU
                     BigDecimal totalBalance = AccountRepository.readTotalBalance(conn, target.getId());
                     if (totalBalance.subtract(amount).compareTo(BigDecimal.ZERO) > 0) {
+                        accept.incrementAndGet();
                         // Skew point where different threads may pick different paths
                         // (allowed in snapshot and RC but not in 1SR)
                         if (settings.cas) {
@@ -64,6 +72,8 @@ public class WriteSkewWorkload extends AbstractWorkload {
                                     random.nextBoolean() ? AccountType.credit : AccountType.checking,
                                     amount);
                         }
+                    } else {
+                        reject.incrementAndGet();
                     }
 
                     return null;
@@ -74,6 +84,9 @@ public class WriteSkewWorkload extends AbstractWorkload {
 
     @Override
     public void afterExcution(Output output) {
+        output.pair("Balance update accepts:", "%d".formatted(accept.get()));
+        output.pair("Balance update rejects:", "%d".formatted(reject.get()));
+
         AtomicInteger negativeAccounts = new AtomicInteger();
 
         BigDecimal totalNegative =
@@ -86,7 +99,7 @@ public class WriteSkewWorkload extends AbstractWorkload {
                                     while (rs.next()) {
                                         BigDecimal balance = rs.getBigDecimal(2);
                                         if (balance.compareTo(BigDecimal.ZERO) < 0) {
-                                            output.error("Negative balance for account id %s: %,f"
+                                            output.error("Negative balance for account pair id: %s (%,f)"
                                                     .formatted(rs.getLong(1), balance));
                                             negativeAccounts.incrementAndGet();
                                             total = total.add(balance);
@@ -98,12 +111,12 @@ public class WriteSkewWorkload extends AbstractWorkload {
                         });
 
         if (negativeAccounts.get() > 0) {
-            output.error("You have %d account pairs with a negative total balance! (ノಠ益ಠ)ノ彡┻━┻"
-                    .formatted(negativeAccounts.get()));
-            output.error("You just lost %s and may want to reconsider your isolation level!! (or use --sfu or --cas)"
+            output.error("You have %d account tuples with a negative total balance! %s"
+                    .formatted(negativeAccounts.get(), AsciiArt.flipTableRoughly()));
+            output.error("You just lost %s and may want to reconsider your isolation level!! (or use --cas)"
                     .formatted(totalNegative));
         } else {
-            output.info("You are good! ¯\\_(ツ)_/¯̑̑");
+            output.info("You are good! %s".formatted(AsciiArt.shrug()));
         }
     }
 }

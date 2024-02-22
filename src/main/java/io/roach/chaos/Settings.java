@@ -7,7 +7,6 @@ import com.zaxxer.hikari.HikariDataSource;
 import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder;
 
 public class Settings {
-    //    String url = "jdbc:postgresql://192.168.1.99:26257/test?sslmode=disable";
     String url = "jdbc:postgresql://localhost:26257/defaultdb?sslmode=disable";
 
     String user = "root";
