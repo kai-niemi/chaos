@@ -96,7 +96,7 @@ public class LostUpdateWorkload extends AbstractWorkload {
     }
 
     @Override
-    public void afterExcution(Output output) {
+    public void afterExecution(Output output) {
         BigDecimal finalBalance = JdbcUtils.execute(dataSource, AccountRepository::sumTotalBalance);
 
         output.pair("Initial total balance:", "%s".formatted(initialBalance));

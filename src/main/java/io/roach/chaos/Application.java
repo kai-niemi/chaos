@@ -273,7 +273,7 @@ public class Application {
         }
 
         output.header("Outcome");
-        workload.afterExcution(output);
+        workload.afterExecution(output);
 
         executorService.shutdownNow();
     }

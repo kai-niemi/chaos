@@ -6,13 +6,13 @@ public enum WorkloadType {
     lost_update(LostUpdateWorkload::new) {
         @Override
         public String note() {
-            return "exposed to P4 lost update. Either --sfu or --cas required for correct execution in RC.";
+            return "bank account updates exposed to P4 lost update. Either --sfu or --cas required for correct execution in RC.";
         }
     },
     write_skew(WriteSkewWorkload::new) {
         @Override
         public String note() {
-            return "exposed to A5B write skew. --cas required for correct execution in RC.";
+            return "bank account updates exposed to A5B write skew. Option --cas required for correct execution in RC.";
         }
     };
 

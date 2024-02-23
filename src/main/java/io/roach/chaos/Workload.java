@@ -10,5 +10,5 @@ public interface Workload extends Callable<List<Duration>> {
 
     void beforeExecution(Output output) throws Exception;
 
-    void afterExcution(Output output);
+    void afterExecution(Output output);
 }

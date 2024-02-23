@@ -7,10 +7,12 @@ levels in CockroachDB. Specifically by observing the application impact on:
 - Performance (is RC faster than 1SR or not)
 - Correctness (P4 lost update and A5B write skew anomalies in particular)
 
-The application is designed to produce contention by concurrently updating an 
-overlapping set of keys in a conflicting order, which is denied under 1SR 
-but allowed under RC, thus resulting in P4 (lost update) or A5B (write skew) 
-anomalies unless a locking strategy is applied. 
+The application is designed to cause workload contention by concurrently 
+updating an overlapping set of keys in a conflicting order. This is denied 
+under 1SR (manifested as retryable errors) but allowed under RC, thus resulting 
+in either the P4 (lost update) or A5B (write skew) anomaly unless a locking 
+strategy is applied. That locking strategy is either pessimistic for-update
+locks or optimistic locks using CAS with versioning. 
 
 ## Schema 
 
@@ -74,20 +76,56 @@ This workload is unsafe in RC unless using optimistic "locks" through a CAS oper
 
 ### Write Skew Workload
 
-This workload concurrently executes the following statements (with pseudo-code):
+Accounts are organized in tuples where the same id is shared by a checking and credit 
+account. The composite primary key is `id,type`. The rule is that the account balances can be
+negative or positive as long as the sum of both accounts is be >= 0.
+
+| id | type     | balance |
+|----|----------|---------|
+| 1  | checking | -5.00   |
+| 1  | credit   | 10.00   |
+| Σ  | -        | +5.00   | 
+
+The write skew can happen if `T1` and `T2` reads the total balance (which is >0 ) and 
+independently writes a new balance to different rows.
+
+Preset:
+
+    insert into account (id, type, balance) values(1, 'checking', -5.00);
+    insert into account (id, type, balance) values(1, 'credit', 10.00);
+
+Assume transaction `T1` and `T2`:
+
+| T1                                                                                 | T2                                                                                  |
+|------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------|
+| begin;                                                                             | begin;                                                                              |
+| set transaction isolation level read committed;                                    | set transaction isolation level read committed;                                     |
+|                                                                                    | select sum(balance) from account where id=1; -- 5.00                                |
+| select sum(balance) from account where id=1; -- 5.00                               |                                                                                     |
+| update account set balance=balance-5 where id=1 and type='credit';  -- ok sum is 0 |                                                                                     | 
+|                                                                                    | update account set balance=balance-5 where id=1 and type='checking'; -- ok sum is 0 | 
+| commit; --ok                                                                       |                                                                                     | 
+|                                                                                    | commit; -- ok (not allowed in 1SR)                                                  | 
+
+Both transactions were correct in isolation but when put together the total sum is `-5.00` (rule violation) 
+since they were both allowed to commit. This subtle anomaly is called write skew, which is prevented 
+in 1SR but allowed in RC.
+
+In summary, this workload concurrently executes the following statements (using pseudo-code):
 
     BEGIN; 
     SELECT sum(balance) total from account where id=<random from selection>; -- expect 2 rows
-    if (total - random_amount > 0) -- app check
-        either:
+    if (total - random_amount > 0) -- app rule check
+        (either)
             UPDATE account set balance=balance-? where id = 1 and type='checking'; 
-        or:
+        (or)
             UPDATE account set balance=balance-? where id = 2 and type='credit'; 
     endif
     COMMIT;
 
-This workload is unsafe in RC unless using optimistic "locking" through a CAS operation
-(version increments). Pessimistic locks can't be used due to the aggregate `sum` function.
+This workload is therefore unsafe in RC unless using optimistic "locking" through a CAS operation
+(version increments). Notice that pessimistic locks can't be used due to the 
+aggregate `sum` function.
 
 **Hint:** To have a greater chance to observe anomalies in RC, decrease the `--selection` and/or
 increase `--iterations` with 10x.

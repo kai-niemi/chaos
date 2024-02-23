@@ -83,7 +83,7 @@ public class WriteSkewWorkload extends AbstractWorkload {
     }
 
     @Override
-    public void afterExcution(Output output) {
+    public void afterExecution(Output output) {
         output.pair("Balance update accepts:", "%d".formatted(accept.get()));
         output.pair("Balance update rejects:", "%d".formatted(reject.get()));
 
