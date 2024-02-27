@@ -3,16 +3,22 @@ package io.roach.chaos;
 import java.util.function.Supplier;
 
 public enum WorkloadType {
-    lost_update(LostUpdateWorkload::new) {
+    lost_update(LostUpdate::new) {
         @Override
         public String note() {
-            return "bank account updates exposed to P4 lost update. Either --sfu or --cas required for correct execution in RC.";
+            return "bank account updates exposed to (P4) lost update. Options --sfu or --cas required for correct execution in RC.";
         }
     },
-    write_skew(WriteSkewWorkload::new) {
+    read_skew(ReadSkew::new) {
         @Override
         public String note() {
-            return "bank account updates exposed to A5B write skew. Option --cas required for correct execution in RC.";
+            return "bank account updates exposed to (A5A) read skew. Options --sfu or --cas required for correct execution in RC.";
+        }
+    },
+    write_skew(WriteSkew::new) {
+        @Override
+        public String note() {
+            return "bank account updates exposed to (A5B) write skew. Option --cas required for correct execution in RC.";
         }
     };
 

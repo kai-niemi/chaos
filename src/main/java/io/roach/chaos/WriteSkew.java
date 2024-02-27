@@ -17,7 +17,7 @@ import io.roach.chaos.support.TransactionTemplate;
 import static io.roach.chaos.AccountRepository.findRandomAccounts;
 import static io.roach.chaos.support.RandomData.selectRandom;
 
-public class WriteSkewWorkload extends AbstractWorkload {
+public class WriteSkew extends AbstractWorkload {
     private final List<Account> accountSelection = new ArrayList<>();
 
     private final AtomicInteger accept = new AtomicInteger();
@@ -56,21 +56,22 @@ public class WriteSkewWorkload extends AbstractWorkload {
                             .setScale(2, RoundingMode.HALF_UP);
 
                     // Invariant check - can't use SFU
-                    BigDecimal totalBalance = AccountRepository.readTotalBalance(conn, target.getId());
+                    BigDecimal totalBalance = AccountRepository.sumAccountBalance(conn, target.getId());
                     if (totalBalance.subtract(amount).compareTo(BigDecimal.ZERO) > 0) {
                         accept.incrementAndGet();
                         // Skew point where different threads may pick different paths
                         // (allowed in snapshot and RC but not in 1SR)
                         if (settings.cas) {
-                            AccountRepository.updateBalanceCAS(conn,
-                                    target,
+                            AccountRepository.addBalanceCAS(conn,
+                                    target.getId().getId(),
                                     random.nextBoolean() ? AccountType.credit : AccountType.checking,
-                                    amount);
+                                    amount.negate(),
+                                    target.getVersion());
                         } else {
-                            AccountRepository.updateBalance(conn,
-                                    target,
+                            AccountRepository.addBalance(conn,
+                                    target.getId().getId(),
                                     random.nextBoolean() ? AccountType.credit : AccountType.checking,
-                                    amount);
+                                    amount.negate());
                         }
                     } else {
                         reject.incrementAndGet();

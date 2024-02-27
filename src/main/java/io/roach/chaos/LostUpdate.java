@@ -21,7 +21,7 @@ import static io.roach.chaos.AccountRepository.updateBalance;
 import static io.roach.chaos.AccountRepository.updateBalanceCAS;
 import static io.roach.chaos.support.RandomData.selectRandom;
 
-public class LostUpdateWorkload extends AbstractWorkload {
+public class LostUpdate extends AbstractWorkload {
     private final List<Account> accountSelection = new ArrayList<>();
 
     private BigDecimal initialBalance;

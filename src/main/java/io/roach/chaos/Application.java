@@ -32,7 +32,7 @@ public class Application {
     private static void printUsageAndQuit(String reason) {
         System.out.println("Usage: java -jar chaos.jar [options] <workload>");
         System.out.println();
-        System.out.println("Common workload options:");
+        System.out.println("Common options:");
         System.out.println("--rc                  read-committed isolation (default is 1SR)");
         System.out.println("--cas                 optimistic locking using CAS (default is false)");
         System.out.println("--debug               verbose SQL trace logging (default is false)");
@@ -47,14 +47,13 @@ public class Application {
                 "--selection <num>     number of accounts to randomize between (default is 500 or 1% of accounts)");
         System.out.println();
 
-        System.out.println("Lost update workload options:");
+        System.out.println("Lost update (P4) options:");
         System.out.println("--sfu                 pessimistic locking using select-for-update (default is false)");
-        System.out.println("--contention <level>  contention level (default is 8, must be a multiple of 2)");
+        System.out.println("--contention <num>    contention level (default is 8, must be a multiple of 2)");
         System.out.println();
 
         System.out.println("Connection options include:");
-        System.out.println(
-                "--url                 datasource URL (jdbc:postgresql://localhost:26257/defaultdb?sslmode=disable)");
+        System.out.println("--url                 datasource URL (jdbc:postgresql://localhost:26257/defaultdb?sslmode=disable)");
         System.out.println("--user                datasource user name (root)");
         System.out.println("--password            datasource password (<empty>)");
         System.out.println();

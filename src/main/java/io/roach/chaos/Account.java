@@ -9,8 +9,12 @@ public class Account {
         private final AccountType type;
 
         public Id(Long id, String type) {
+            this(id, AccountType.valueOf(type));
+        }
+
+        public Id(Long id, AccountType type) {
             this.id = id;
-            this.type = AccountType.valueOf(type);
+            this.type = type;
         }
 
         public Long getId() {

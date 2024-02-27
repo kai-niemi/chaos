@@ -166,6 +166,25 @@ public abstract class AccountRepository {
         }
     }
 
+    public static void addBalance(Connection connection,
+                                  Long id,
+                                  AccountType type,
+                                  BigDecimal amount)
+            throws SQLException {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "UPDATE account SET balance = balance + ? " +
+                        "WHERE id = ? AND type=?")) {
+            ps.setBigDecimal(1, amount);
+            ps.setLong(2, id);
+            ps.setObject(3, type.name());
+
+            int rows = ps.executeUpdate();
+            if (rows != 1) {
+                throw new IllegalStateException("Rows affected not 1 but " + rows + " for " + id);
+            }
+        }
+    }
+
     public static void updateBalanceCAS(Connection conn, Account account) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "UPDATE account SET balance = ?, version = version + 1 "
@@ -181,57 +200,27 @@ public abstract class AccountRepository {
         }
     }
 
-    public static BigDecimal sumTotalBalance(Connection conn) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT sum(balance) tot_balance FROM account WHERE 1=1")) {
-            try (ResultSet res = ps.executeQuery()) {
-                if (!res.next()) {
-                    throw new SQLException("Empty result");
-                }
-                return res.getBigDecimal("tot_balance");
-            }
-        }
-    }
-
-    static void updateBalance(Connection connection,
-                              Account account,
-                              AccountType type,
-                              BigDecimal amount)
+    public static void addBalanceCAS(Connection connection,
+                                     Long id,
+                                     AccountType type,
+                                     BigDecimal amount,
+                                     Integer version)
             throws SQLException {
         try (PreparedStatement ps = connection.prepareStatement(
-                "UPDATE account SET balance = balance - ? " +
-                        "WHERE id = ? AND type=?")) {
-            ps.setBigDecimal(1, amount);
-            ps.setLong(2, account.getId().getId());
-            ps.setObject(3, type.name());
-
-            int rows = ps.executeUpdate();
-            if (rows != 1) {
-                throw new IllegalStateException("Rows affected not 1 but " + rows + " for " + account.getId());
-            }
-        }
-    }
-
-    static void updateBalanceCAS(Connection connection,
-                                 Account account,
-                                 AccountType type,
-                                 BigDecimal amount)
-            throws SQLException {
-        try (PreparedStatement ps = connection.prepareStatement(
-                "UPDATE account SET balance = balance - ?, version = version + 1 " +
+                "UPDATE account SET balance = balance + ?, version = version + 1 " +
                         "WHERE id = ? AND type=? AND version=?")) {
             ps.setBigDecimal(1, amount);
-            ps.setLong(2, account.getId().getId());
+            ps.setLong(2, id);
             ps.setObject(3, type.name());
-            ps.setInt(4, account.getVersion());
+            ps.setInt(4, version);
 
             if (ps.executeUpdate() != 1) {
-                throw new OptimisticLockException("" + account);
+                throw new OptimisticLockException("id: " + id + " version: " + version);
             }
         }
     }
 
-    static BigDecimal readTotalBalance(Connection connection, Account.Id id)
+    static BigDecimal sumAccountBalance(Connection connection, Account.Id id)
             throws SQLException {
         try (PreparedStatement ps = connection.prepareStatement(
                 "select sum(balance) from account where id=?")) {
@@ -243,6 +232,18 @@ public abstract class AccountRepository {
                 } else {
                     throw new IllegalStateException("No such account  " + id);
                 }
+            }
+        }
+    }
+
+    public static BigDecimal sumTotalBalance(Connection conn) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT sum(balance) tot_balance FROM account WHERE 1=1")) {
+            try (ResultSet res = ps.executeQuery()) {
+                if (!res.next()) {
+                    throw new SQLException("Empty result");
+                }
+                return res.getBigDecimal("tot_balance");
             }
         }
     }
