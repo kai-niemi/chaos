@@ -4,7 +4,7 @@ A simple JDBC application for comparing the semantics of RC and 1SR isolation
 levels in CockroachDB. Specifically by observing the application impact on:
 
 - Retries (transaction rollbacks with state code 40001)
-- Performance (is RC faster than 1SR or not)
+- Performance (if RC is faster than 1SR or not)
 - Correctness (P4 lost update and A5B write skew anomalies in particular)
 
 The application is designed to cause workload contention by concurrently 
@@ -13,6 +13,8 @@ under 1SR (manifested as retryable errors) but allowed under RC, thus resulting
 in either the P4 (lost update) or A5B (write skew) anomaly unless a locking 
 strategy is applied. That locking strategy is either pessimistic for-update
 locks or optimistic locks using CAS with versioning. 
+
+It supports both PSQL and CockroachDB v23.2+.
 
 ## Schema 
 
@@ -29,12 +31,17 @@ locks or optimistic locks using CAS with versioning.
         primary key (id, type)
     );
 
-## Conflicting Operations
+## Conflicting Workloads
 
 A brief description of the workload which is concurrently updating the same
 account table with an overlapping set of keys.
 
-### Lost Update Workload
+### Lost Update Workload 
+
+Examples:
+    
+    ./run.sh lost_update --rc
+    ./run.sh --url "jdbc:postgresql://localhost:5432/chaos" --dialect psql --rc lost_update 
 
 This workload concurrently executes the following statements (at minimum 4) using 
 explicit transactions and N threads:
@@ -75,6 +82,11 @@ This workload is unsafe in RC unless using optimistic "locks" through a CAS oper
 (version increments) or by using pessimistic `SELECT .. FOR UPDATE` locks at read time.
 
 ### Write Skew Workload
+
+Examples:
+
+    ./run.sh --rc --selection 20 write_skew
+    ./run.sh --url "jdbc:postgresql://localhost:5432/chaos" --dialect psql --rc write_skew 
 
 Accounts are organized in tuples where the same id is shared by a checking and credit 
 account. The composite primary key is `id,type`. The rule is that the account balances can be
@@ -130,6 +142,19 @@ aggregate `sum` function.
 **Hint:** To have a greater chance to observe anomalies in RC, decrease the `--selection` and/or
 increase `--iterations` with 10x.
 
+### Read Skew Workload
+
+Examples:
+
+    ./run.sh --rc --selection 20 read_skew
+    ./run.sh --url "jdbc:postgresql://localhost:5432/chaos" --dialect psql --rc read_skew 
+
+This workload is similar to write skew where the account balances
+are read in separate statements where the sum is expected to remain
+constant. Under RC without locks its allowed to read values 
+committed by other concurrent transactions and therefore observe
+deviations. 
+
 ## CockroachDB Setup
 
 Ensure that you are using CockroachDB 23.2 or later and then enable RC with:
@@ -157,59 +182,3 @@ Build:
 Run:
 
     java -jar target/chaos.jar --help
-
-Example using read-committed:
-
-    << Totals >>
-    Args: [--rc]
-    Using: CockroachDB CCL v23.2.0 (x86_64-pc-linux-gnu, built 2024/01/16 19:30:18, go1.21.5 X:nocoverageredesign)
-    Execution time: PT10.170636S
-    Total commits: 1 000
-    Total fails: 0
-    Total retries: 5
-    << Timings >>
-    Avg time spent in txn: 79,8 ms
-    Cumulative time spent in txn: 80193 ms
-    Min time in txn: 47,0 ms
-    Max time in txn: 354,0 ms
-    Tot samples: 1005
-    P95 latency 142,0 ms
-    P99 latency 189,0 ms
-    P99.9 latency 256,0 ms
-    << Safety >>
-    Using locks (sfu): no
-    Using CAS: no
-    Isolation level: read committed
-    << Verdict >>
-    Total initial balance: 250000000.00
-    Total final balance: 249999754.75
-    250000000.00 != 249999754.75 (ノಠ益ಠ)ノ彡┻━┻
-    You just lost 245.25 and may want to reconsider your isolation level!! (or use --sfu or --cas)
-
-Example using serializable:
-
-    << Totals >>
-    Args: []
-    Using: CockroachDB CCL v23.2.0 (x86_64-pc-linux-gnu, built 2024/01/16 19:30:18, go1.21.5 X:nocoverageredesign)
-    Execution time: PT12.892385S
-    Total commits: 1 000
-    Total fails: 0
-    Total retries: 194
-    << Timings >>
-    Avg time spent in txn: 85,2 ms
-    Cumulative time spent in txn: 101761 ms
-    Min time in txn: 33,0 ms
-    Max time in txn: 313,0 ms
-    Tot samples: 1194
-    P95 latency 159,0 ms
-    P99 latency 219,0 ms
-    P99.9 latency 298,0 ms
-    << Safety >>
-    Using locks (sfu): no
-    Using CAS: no
-    Isolation level: serializable
-    << Verdict >>
-    Total initial balance: 250000000.00
-    Total final balance: 250000000.00
-    You are good! ¯\_(ツ)_/¯̑̑
-    

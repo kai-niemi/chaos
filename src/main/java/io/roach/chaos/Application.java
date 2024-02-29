@@ -36,10 +36,11 @@ public class Application {
         System.out.println("--rc                  read-committed isolation (default is 1SR)");
         System.out.println("--cas                 optimistic locking using CAS (default is false)");
         System.out.println("--debug               verbose SQL trace logging (default is false)");
-        System.out.println("--skip-create         skip creation of schema and test data (default is false)");
+        System.out.println("--skip-create         skip DDL script at startup (default is false)");
         System.out.println("--jitter              enable exponential backoff jitter (default is false)");
         System.out.println(
                 "                      Skip the jitter for more comparable results between isolation levels.");
+        System.out.println("--dialect <db>        database dialect one of: crdb|psql (default is crdb)");
         System.out.println("--threads <num>       max number of threads (default is host vCPUs x 2)");
         System.out.println("--iterations <num>    number of cycles to run (default is 1,000)");
         System.out.println("--accounts <num>      number of accounts to create and randomize between (default is 50K)");
@@ -53,7 +54,8 @@ public class Application {
         System.out.println();
 
         System.out.println("Connection options include:");
-        System.out.println("--url                 datasource URL (jdbc:postgresql://localhost:26257/defaultdb?sslmode=disable)");
+        System.out.println(
+                "--url                 datasource URL (jdbc:postgresql://localhost:26257/defaultdb?sslmode=disable)");
         System.out.println("--user                datasource user name (root)");
         System.out.println("--password            datasource password (<empty>)");
         System.out.println();
@@ -76,10 +78,15 @@ public class Application {
             if (arg.startsWith("--")) {
                 if (arg.equals("--debug")) {
                     settings.debugProxy = true;
-                } else if (arg.equals("--skip-create")) {
-                    settings.skipCreate = true;
+                } else if (arg.equals("--dialect")) {
+                    if (argsList.isEmpty()) {
+                        printUsageAndQuit("Expected value");
+                    }
+                    settings.dialect = argsList.pop();
                 } else if (arg.equals("--jitter")) {
                     settings.jitter = true;
+                } else if (arg.equals("--skip-create")) {
+                    settings.skipDDL = true;
                 } else if (arg.equals("--rc") || arg.equals("--read-committed")) {
                     settings.readCommitted = true;
                 } else if (arg.equals("--sfu") || arg.equals("--select-for-update")) {
@@ -164,6 +171,11 @@ public class Application {
         final String isolationLevel = JdbcUtils.execute(dataSource,
                 conn -> JdbcUtils.selectOne(conn, "SHOW transaction_isolation", String.class));
 
+        JdbcUtils.execute(dataSource, conn -> {
+            JdbcUtils.inspectDatabaseMetadata(conn, (k, v) -> output.pair(k + ":", "%s".formatted(v)));
+            return null;
+        });
+
         if (settings.readCommitted && !"read committed".equalsIgnoreCase(isolationLevel)) {
             logger.error("Read-committed is enabled but database default is '%s'".formatted(isolationLevel));
             logger.error("Execute: SET CLUSTER SETTING sql.txn.read_committed_isolation.enabled = 'true';");
@@ -181,7 +193,6 @@ public class Application {
 
         output.info("Queuing max %d workers for %d iterations - awaiting completion"
                 .formatted(settings.workers, settings.iterations));
-        output.pair("Database:", "%s".formatted(version));
         output.pair("Isolation level:", "%s".formatted(isolationLevel));
         output.pair("Workload:", "%s".formatted(workloadType.name()));
         output.pair("Threads:", "%d".formatted(settings.workers));
@@ -291,12 +302,12 @@ public class Application {
     private static final Output output = new Output() {
         @Override
         public void header(String text) {
-            System.out.printf("%s<<%s>>%s\n", AnsiColor.BOLD_BRIGHT_CYAN.getCode(), text, AnsiColor.RESET.getCode());
+            System.out.printf("%s(%s)%s\n", AnsiColor.BOLD_BRIGHT_CYAN.getCode(), text, AnsiColor.RESET.getCode());
         }
 
         @Override
         public void pair(String prefix, String suffix) {
-            System.out.printf("%s%20s%s ", AnsiColor.BOLD_BRIGHT_GREEN.getCode(), prefix, AnsiColor.RESET.getCode());
+            System.out.printf("%s%30s%s ", AnsiColor.BOLD_BRIGHT_GREEN.getCode(), prefix, AnsiColor.RESET.getCode());
             System.out.printf("%s%s%s", AnsiColor.BOLD_BRIGHT_YELLOW.getCode(), suffix, AnsiColor.RESET.getCode());
             System.out.println();
         }

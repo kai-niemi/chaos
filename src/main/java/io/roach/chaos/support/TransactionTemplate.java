@@ -52,7 +52,8 @@ public class TransactionTemplate {
 
                     return result;
                 } catch (SQLException ex) {
-                    if ("40001".equals(ex.getSQLState())) {
+                    if ("40001".equals(ex.getSQLState()) ||
+                            "40P01".equals(ex.getSQLState())) { // deadlock loser
                         conn.rollback();
                         handleTransientException(ex, call, MAX_RETRIES);
                         times.add(Duration.between(startTime, Instant.now()));

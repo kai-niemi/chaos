@@ -31,15 +31,10 @@ public class ReadSkew extends AbstractWorkload {
     private final BigDecimal tupleSum = new BigDecimal("1000.00");
 
     @Override
-    public void beforeExecution(Output output) throws Exception {
-        if (!settings.skipCreate) {
-            output.info("Creating schema");
-            AccountRepository.createSchema(dataSource);
-
-            output.info("Creating %,d accounts".formatted(settings.numAccounts));
-            AccountRepository.createAccounts(dataSource,
-                    new BigDecimal("500.00"), settings.numAccounts);
-        }
+    public void beforeExecution(Output output) {
+        output.info("Creating %,d accounts".formatted(settings.numAccounts));
+        AccountRepository.createAccounts(dataSource,
+                new BigDecimal("500.00"), settings.numAccounts);
 
         this.accountSelection.addAll(JdbcUtils.execute(dataSource,
                 conn -> findRandomAccounts(conn, settings.selection)));
@@ -60,6 +55,7 @@ public class ReadSkew extends AbstractWorkload {
                     while (tuple != null) {
                         Account a = AccountRepository.findById(conn, tuple.getA(), settings.lock);
                         Account b = AccountRepository.findById(conn, tuple.getB(), settings.lock);
+
                         BigDecimal snapshot = a.getBalance().add(b.getBalance());
                         // Should always observe a constant total
                         if (!snapshot.equals(tupleSum)) {

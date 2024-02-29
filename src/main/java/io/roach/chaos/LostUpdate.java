@@ -27,15 +27,10 @@ public class LostUpdate extends AbstractWorkload {
     private BigDecimal initialBalance;
 
     @Override
-    public void beforeExecution(Output output) throws Exception {
-        if (!settings.skipCreate) {
-            output.info("Creating schema");
-            AccountRepository.createSchema(dataSource);
-
-            output.info("Creating %,d accounts".formatted(settings.numAccounts));
-            AccountRepository.createAccounts(dataSource,
-                    new BigDecimal("5000.00"), settings.numAccounts);
-        }
+    public void beforeExecution(Output output) {
+        output.info("Creating %,d accounts".formatted(settings.numAccounts));
+        AccountRepository.createAccounts(dataSource,
+                new BigDecimal("5000.00"), settings.numAccounts);
 
         this.initialBalance = JdbcUtils.execute(dataSource, AccountRepository::sumTotalBalance);
 

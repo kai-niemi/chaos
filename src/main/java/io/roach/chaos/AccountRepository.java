@@ -24,8 +24,12 @@ import java.util.stream.IntStream;
 public abstract class AccountRepository {
     public static final int BATCH_SIZE = 512;
 
-    public static void createSchema(DataSource ds) throws Exception {
-        URL sql = AccountRepository.class.getResource("/db/create.sql");
+    public static void createSchema(DataSource ds, String dialect) throws Exception {
+        if ("none".equals(dialect)) {
+            return;
+        }
+
+        URL sql = AccountRepository.class.getResource("/db/create-%s.sql".formatted(dialect));
 
         StringBuilder buffer = new StringBuilder();
 
@@ -60,15 +64,29 @@ public abstract class AccountRepository {
         for (List<Integer> batch : result) {
             List<Long> generatedIds = JdbcUtils.execute(dataSource, conn -> {
                 List<Long> ids = new ArrayList<>(BATCH_SIZE);
-                try (PreparedStatement ps = conn
-                        .prepareStatement("select unordered_unique_rowid() FROM generate_series(1, ?) AS i")) {
-                    ps.setLong(1, batch.size());
-                    try (ResultSet keys = ps.executeQuery()) {
-                        while (keys.next()) {
-                            ids.add(keys.getLong(1));
+
+                if (JdbcUtils.execute(dataSource, JdbcUtils::isCockroachDB)) {
+                    try (PreparedStatement ps = conn
+                            .prepareStatement("select unordered_unique_rowid() FROM generate_series(1, ?) AS i")) {
+                        ps.setLong(1, batch.size());
+                        try (ResultSet keys = ps.executeQuery()) {
+                            while (keys.next()) {
+                                ids.add(keys.getLong(1));
+                            }
+                        }
+                    }
+                } else {
+                    try (PreparedStatement ps = conn
+                            .prepareStatement("select nextval('account_seq') FROM generate_series(1, ?) AS i")) {
+                        ps.setLong(1, batch.size());
+                        try (ResultSet keys = ps.executeQuery()) {
+                            while (keys.next()) {
+                                ids.add(keys.getLong(1));
+                            }
                         }
                     }
                 }
+
                 return ids;
             });
 
@@ -113,7 +131,7 @@ public abstract class AccountRepository {
     public static Account findById(Connection conn, Account.Id id, boolean lock)
             throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT * FROM account WHERE id = ? AND type = ?"
+                "SELECT * FROM account WHERE id = ? AND type = ?::account_type"
                         + (lock ? " FOR UPDATE" : ""))) {
             ps.setLong(1, id.getId());
             ps.setString(2, id.getType().name());
@@ -155,7 +173,7 @@ public abstract class AccountRepository {
     public static void updateBalance(Connection conn, Account account) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "UPDATE account SET balance = ? "
-                        + "WHERE id = ? and type=?")) {
+                        + "WHERE id = ? and type=?::account_type")) {
             ps.setBigDecimal(1, account.getBalance());
             ps.setLong(2, account.getId().getId());
             ps.setString(3, account.getId().getType().name());
@@ -173,7 +191,7 @@ public abstract class AccountRepository {
             throws SQLException {
         try (PreparedStatement ps = connection.prepareStatement(
                 "UPDATE account SET balance = balance + ? " +
-                        "WHERE id = ? AND type=?")) {
+                        "WHERE id = ? AND type=?::account_type")) {
             ps.setBigDecimal(1, amount);
             ps.setLong(2, id);
             ps.setObject(3, type.name());
@@ -188,7 +206,7 @@ public abstract class AccountRepository {
     public static void updateBalanceCAS(Connection conn, Account account) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "UPDATE account SET balance = ?, version = version + 1 "
-                        + "WHERE id = ? AND type=? AND version=?")) {
+                        + "WHERE id = ? AND type=?::account_type AND version=?")) {
             ps.setBigDecimal(1, account.getBalance());
             ps.setLong(2, account.getId().getId());
             ps.setString(3, account.getId().getType().name());
@@ -208,7 +226,7 @@ public abstract class AccountRepository {
             throws SQLException {
         try (PreparedStatement ps = connection.prepareStatement(
                 "UPDATE account SET balance = balance + ?, version = version + 1 " +
-                        "WHERE id = ? AND type=? AND version=?")) {
+                        "WHERE id = ? AND type=?::account_type AND version=?")) {
             ps.setBigDecimal(1, amount);
             ps.setLong(2, id);
             ps.setObject(3, type.name());
