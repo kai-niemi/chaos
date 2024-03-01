@@ -18,6 +18,8 @@ public class Settings {
 
     String password = "";
 
+    WorkloadType workloadType = WorkloadType.lost_update;
+
     boolean lock;
 
     boolean cas;
@@ -28,9 +30,11 @@ public class Settings {
 
     boolean debugProxy = false;
 
-    boolean skipDDL;
+    boolean skipCreate;
 
-    String dialect = "crdb";
+    boolean skipInit;
+
+    Dialect dialect = Dialect.crdb;
 
     int workers = Runtime.getRuntime().availableProcessors() * 2;
 

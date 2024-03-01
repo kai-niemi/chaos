@@ -6,9 +6,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 public interface Workload extends Callable<List<Duration>> {
-    void setup(Settings settings, DataSource dataSource) throws Exception;
-
-    void beforeExecution(Output output) throws Exception;
+    void beforeExecution(Settings settings, DataSource dataSource, Output output) throws Exception;
 
     void afterExecution(Output output);
 }

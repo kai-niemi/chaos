@@ -1,13 +1,7 @@
 package io.roach.chaos;
 
-import io.roach.chaos.support.DataAccessException;
-import io.roach.chaos.support.JdbcUtils;
-import io.roach.chaos.support.OptimisticLockException;
-import io.roach.chaos.support.RandomData;
-
-import javax.sql.DataSource;
 import java.math.BigDecimal;
-import java.net.URL;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.Connection;
@@ -18,40 +12,48 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import javax.sql.DataSource;
+
+import io.roach.chaos.jdbc.DataAccessException;
+import io.roach.chaos.jdbc.JdbcUtils;
+import io.roach.chaos.jdbc.OptimisticLockException;
+import io.roach.chaos.util.RandomData;
 
 public abstract class AccountRepository {
     public static final int BATCH_SIZE = 512;
 
-    public static void createSchema(DataSource ds, String dialect) throws Exception {
-        if ("none".equals(dialect)) {
-            return;
-        }
+    public static void createSchema(DataSource ds, Dialect dialect) {
+        JdbcUtils.execute(ds, conn -> {
+            StringBuilder buffer = new StringBuilder();
 
-        URL sql = AccountRepository.class.getResource("/db/create-%s.sql".formatted(dialect));
-
-        StringBuilder buffer = new StringBuilder();
-
-        Files.readAllLines(Paths.get(sql.toURI())).forEach(line -> {
-            if (!line.startsWith("--") && !line.isEmpty()) {
-                buffer.append(line);
-            }
-            if (line.endsWith(";") && !buffer.isEmpty()) {
-                JdbcUtils.execute(ds, conn -> {
-                    try (Statement statement = conn.createStatement()) {
-                        statement.execute(buffer.toString());
+            try {
+                URI uri = AccountRepository.class.getResource("/db/create-%s.sql".formatted(dialect)).toURI();
+                for (String line : Files.readAllLines(Paths.get(uri))) {
+                    if (!line.startsWith("--") && !line.isEmpty()) {
+                        buffer.append(line);
                     }
-                    buffer.setLength(0);
-                    return null;
-                });
+                    if (line.endsWith(";") && !buffer.isEmpty()) {
+                        try (Statement statement = conn.createStatement()) {
+                            statement.execute(buffer.toString());
+                        }
+                        buffer.setLength(0);
+                    }
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
+            return null;
         });
     }
 
     public static void createAccounts(DataSource dataSource,
                                       BigDecimal initialBalance,
-                                      int count) {
+                                      int count,
+                                      Consumer<Integer> progress) {
         JdbcUtils.execute(dataSource, conn -> {
             JdbcUtils.update(conn, "TRUNCATE table account");
             return null;
@@ -65,28 +67,18 @@ public abstract class AccountRepository {
             List<Long> generatedIds = JdbcUtils.execute(dataSource, conn -> {
                 List<Long> ids = new ArrayList<>(BATCH_SIZE);
 
-                if (JdbcUtils.execute(dataSource, JdbcUtils::isCockroachDB)) {
-                    try (PreparedStatement ps = conn
-                            .prepareStatement("select unordered_unique_rowid() FROM generate_series(1, ?) AS i")) {
-                        ps.setLong(1, batch.size());
-                        try (ResultSet keys = ps.executeQuery()) {
-                            while (keys.next()) {
-                                ids.add(keys.getLong(1));
-                            }
-                        }
-                    }
-                } else {
-                    try (PreparedStatement ps = conn
-                            .prepareStatement("select nextval('account_seq') FROM generate_series(1, ?) AS i")) {
-                        ps.setLong(1, batch.size());
-                        try (ResultSet keys = ps.executeQuery()) {
-                            while (keys.next()) {
-                                ids.add(keys.getLong(1));
-                            }
+                String sql = JdbcUtils.execute(dataSource, JdbcUtils::isCockroachDB)
+                        ? "select unordered_unique_rowid() FROM generate_series(1, ?) AS i"
+                        : "select nextval('account_seq') FROM generate_series(1, ?) AS i";
+
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setLong(1, batch.size());
+                    try (ResultSet keys = ps.executeQuery()) {
+                        while (keys.next()) {
+                            ids.add(keys.getLong(1));
                         }
                     }
                 }
-
                 return ids;
             });
 
@@ -122,6 +114,8 @@ public abstract class AccountRepository {
                     ps.setArray(4, ps.getConnection().createArrayOf("account_type", types.toArray()));
 
                     ps.executeLargeUpdate();
+
+                    progress.accept(generatedIds.size()*2);
                 }
                 return null;
             });

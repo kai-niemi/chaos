@@ -10,16 +10,18 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.IntStream;
 
-import io.roach.chaos.support.AsciiArt;
-import io.roach.chaos.support.JdbcUtils;
-import io.roach.chaos.support.TransactionTemplate;
-import io.roach.chaos.support.Tuple;
+import javax.sql.DataSource;
+
+import io.roach.chaos.util.AsciiArt;
+import io.roach.chaos.jdbc.JdbcUtils;
+import io.roach.chaos.jdbc.TransactionTemplate;
+import io.roach.chaos.util.Tuple;
 
 import static io.roach.chaos.AccountRepository.findById;
 import static io.roach.chaos.AccountRepository.findRandomAccounts;
 import static io.roach.chaos.AccountRepository.updateBalance;
 import static io.roach.chaos.AccountRepository.updateBalanceCAS;
-import static io.roach.chaos.support.RandomData.selectRandom;
+import static io.roach.chaos.util.RandomData.selectRandom;
 
 public class LostUpdate extends AbstractWorkload {
     private final List<Account> accountSelection = new ArrayList<>();
@@ -27,10 +29,8 @@ public class LostUpdate extends AbstractWorkload {
     private BigDecimal initialBalance;
 
     @Override
-    public void beforeExecution(Output output) {
-        output.info("Creating %,d accounts".formatted(settings.numAccounts));
-        AccountRepository.createAccounts(dataSource,
-                new BigDecimal("5000.00"), settings.numAccounts);
+    public void beforeExecution(Settings settings, DataSource dataSource, Output output) throws Exception {
+        super.beforeExecution(settings, dataSource, output);
 
         this.initialBalance = JdbcUtils.execute(dataSource, AccountRepository::sumTotalBalance);
 
@@ -94,8 +94,8 @@ public class LostUpdate extends AbstractWorkload {
     public void afterExecution(Output output) {
         BigDecimal finalBalance = JdbcUtils.execute(dataSource, AccountRepository::sumTotalBalance);
 
-        output.pair("Initial total balance:", "%s".formatted(initialBalance));
-        output.pair("Final total balance:", "%s".formatted(finalBalance));
+        output.column("Initial total balance:", "%s".formatted(initialBalance));
+        output.column("Final total balance:", "%s".formatted(finalBalance));
 
         if (!initialBalance.equals(finalBalance)) {
             output.error("%s != %s %s"

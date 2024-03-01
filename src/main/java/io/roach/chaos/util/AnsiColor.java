@@ -1,4 +1,4 @@
-package io.roach.chaos.support;
+package io.roach.chaos.util;
 
 public enum AnsiColor {
     RESET("\033[0m"),

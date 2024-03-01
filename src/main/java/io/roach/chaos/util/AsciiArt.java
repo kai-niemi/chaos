@@ -1,4 +1,4 @@
-package io.roach.chaos.support;
+package io.roach.chaos.util;
 
 public abstract class AsciiArt {
     private AsciiArt() {
@@ -24,7 +24,7 @@ public abstract class AsciiArt {
         double p = (current + 0.0) / (Math.max(1, total) + 0.0);
         int ticks = Math.max(0, (int) (30 * p) - 1);
         return String.format(
-                "%4d/%-3d %4.1f%%[%-30s] %s",
+                "%,8d/%,-8d %5.1f%%[%-30s] %s",
                 current,
                 total,
                 p * 100.0,

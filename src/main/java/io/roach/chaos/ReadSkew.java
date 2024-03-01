@@ -13,13 +13,15 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import io.roach.chaos.support.AsciiArt;
-import io.roach.chaos.support.JdbcUtils;
-import io.roach.chaos.support.TransactionTemplate;
-import io.roach.chaos.support.Tuple;
+import javax.sql.DataSource;
+
+import io.roach.chaos.util.AsciiArt;
+import io.roach.chaos.jdbc.JdbcUtils;
+import io.roach.chaos.jdbc.TransactionTemplate;
+import io.roach.chaos.util.Tuple;
 
 import static io.roach.chaos.AccountRepository.findRandomAccounts;
-import static io.roach.chaos.support.RandomData.selectRandom;
+import static io.roach.chaos.util.RandomData.selectRandom;
 
 public class ReadSkew extends AbstractWorkload {
     private final List<Account> accountSelection = new ArrayList<>();
@@ -31,10 +33,8 @@ public class ReadSkew extends AbstractWorkload {
     private final BigDecimal tupleSum = new BigDecimal("1000.00");
 
     @Override
-    public void beforeExecution(Output output) {
-        output.info("Creating %,d accounts".formatted(settings.numAccounts));
-        AccountRepository.createAccounts(dataSource,
-                new BigDecimal("500.00"), settings.numAccounts);
+    public void beforeExecution(Settings settings, DataSource dataSource, Output output) throws Exception {
+        super.beforeExecution(settings, dataSource, output);
 
         this.accountSelection.addAll(JdbcUtils.execute(dataSource,
                 conn -> findRandomAccounts(conn, settings.selection)));

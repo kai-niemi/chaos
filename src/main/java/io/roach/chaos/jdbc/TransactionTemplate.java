@@ -1,4 +1,4 @@
-package io.roach.chaos.support;
+package io.roach.chaos.jdbc;
 
 import java.lang.reflect.UndeclaredThrowableException;
 import java.sql.Connection;

@@ -1,4 +1,4 @@
-package io.roach.chaos.support;
+package io.roach.chaos.jdbc;
 
 public class DataAccessException extends RuntimeException {
     public DataAccessException(String message) {
