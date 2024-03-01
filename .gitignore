@@ -5,6 +5,7 @@ target/
 *.ipr
 *.iws
 *.log
+*.csv
 .DS_Store
 .DS_Store?
 Thumbs.db
