@@ -1,15 +1,13 @@
 package io.roach.chaos;
 
-import javax.sql.DataSource;
-
-import org.slf4j.LoggerFactory;
-
 import com.zaxxer.hikari.HikariDataSource;
-
 import net.ttddyy.dsproxy.listener.logging.DefaultQueryLogEntryCreator;
 import net.ttddyy.dsproxy.listener.logging.SLF4JLogLevel;
 import net.ttddyy.dsproxy.listener.logging.SLF4JQueryLoggingListener;
 import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder;
+import org.slf4j.LoggerFactory;
+
+import javax.sql.DataSource;
 
 public class Settings {
     String url = "jdbc:postgresql://localhost:26257/defaultdb?sslmode=disable";
@@ -25,6 +23,8 @@ public class Settings {
     boolean cas;
 
     boolean jitter;
+
+    boolean export;
 
     boolean readCommitted = false;
 
@@ -46,7 +46,16 @@ public class Settings {
 
     int iterations = 1000;
 
-    public DataSource createDataSource() {
+    private DataSource dataSource;
+
+    public DataSource getDataSource() {
+        if (dataSource == null) {
+            dataSource = createDataSource();
+        }
+        return dataSource;
+    }
+
+    private DataSource createDataSource() {
         HikariDataSource hikariDS = new HikariDataSource();
         hikariDS.setJdbcUrl(url);
         hikariDS.setUsername(user);

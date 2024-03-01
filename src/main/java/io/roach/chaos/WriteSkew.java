@@ -1,5 +1,9 @@
 package io.roach.chaos;
 
+import io.roach.chaos.jdbc.JdbcUtils;
+import io.roach.chaos.jdbc.TransactionTemplate;
+import io.roach.chaos.util.AsciiArt;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.PreparedStatement;
@@ -9,12 +13,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import javax.sql.DataSource;
-
-import io.roach.chaos.util.AsciiArt;
-import io.roach.chaos.jdbc.JdbcUtils;
-import io.roach.chaos.jdbc.TransactionTemplate;
 
 import static io.roach.chaos.AccountRepository.findRandomAccounts;
 import static io.roach.chaos.util.RandomData.selectRandom;
@@ -27,10 +25,10 @@ public class WriteSkew extends AbstractWorkload {
     private final AtomicInteger reject = new AtomicInteger();
 
     @Override
-    public void beforeExecution(Settings settings, DataSource dataSource, Output output) throws Exception {
-        super.beforeExecution(settings, dataSource, output);
+    public void beforeExecution(Output output, Settings settings) throws Exception {
+        super.beforeExecution(output, settings);
 
-        this.accountSelection.addAll(JdbcUtils.execute(dataSource,
+        this.accountSelection.addAll(JdbcUtils.execute(settings.getDataSource(),
                 conn -> findRandomAccounts(conn, settings.selection)));
 
         this.accept.set(0);
@@ -43,7 +41,7 @@ public class WriteSkew extends AbstractWorkload {
 
         List<Duration> durations = new ArrayList<>();
 
-        new TransactionTemplate(dataSource, settings.jitter)
+        new TransactionTemplate(settings.getDataSource(), settings.jitter)
                 .executeWithRetries(conn -> {
                     Account target = selectRandom(accountSelection);
 
@@ -79,14 +77,14 @@ public class WriteSkew extends AbstractWorkload {
     }
 
     @Override
-    public void afterExecution(Output output) {
+    public void afterExecution(Output output, Exporter exporter) throws Exception {
         output.column("Balance update accepts:", "%d".formatted(accept.get()));
         output.column("Balance update rejects:", "%d".formatted(reject.get()));
 
         AtomicInteger negativeAccounts = new AtomicInteger();
 
         BigDecimal totalNegative =
-                JdbcUtils.execute(dataSource,
+                JdbcUtils.execute(settings.getDataSource(),
                         conn -> {
                             BigDecimal total = BigDecimal.ZERO;
                             try (PreparedStatement ps = conn.prepareStatement(
@@ -114,5 +112,7 @@ public class WriteSkew extends AbstractWorkload {
         } else {
             output.info("You are good! %s".formatted(AsciiArt.shrug()));
         }
+
+        exporter.write(List.of("discrepancies", (long) negativeAccounts.get(), "counter"));
     }
 }

@@ -1,42 +1,74 @@
 # Chaos
 
-A simple JDBC application for comparing the semantics of RC and 1SR isolation 
-levels in CockroachDB. Specifically by observing the application impact on:
+[![Java CI with Maven](https://github.com/kai-niemi/chaos/actions/workflows/maven.yml/badge.svg?branch=main)](https://github.com/kai-niemi/chaos/actions/workflows/maven.yml)
 
-- Retries (transaction rollbacks with state code 40001)
-- Performance (if RC is faster than 1SR or not)
-- Correctness (P4 lost update and A5B write skew anomalies in particular)
+A simple JDBC application for comparing the semantics of read-committed (RC) 
+and serializable (1SR) isolation levels in CockroachDB and PostgreSQL. 
+Specifically by observing the application impact on:
 
-The application is designed to cause workload contention by concurrently 
-updating an overlapping set of keys in a conflicting order. This is denied 
-under 1SR (manifested as retryable errors) but allowed under RC, thus resulting 
-in either the P4 (lost update) or A5B (write skew) anomaly unless a locking 
-strategy is applied. That locking strategy is either pessimistic for-update
-locks or optimistic locks using CAS with versioning. 
+- Retries (transaction rollbacks with state code 40001 or 40P01)
+- Performance (whether RC is faster than 1SR or not)
+- Correctness (P4 lost update, A5B write skew and A5A read skew anomalies in particular)
 
-It supports both PSQL and CockroachDB v23.2+.
+The application is intentionally designed to cause pathological workload contention 
+by concurrently updating an overlapping set of keys in a conflicting order. 
 
-## Schema 
+This is denied under 1SR and manifested as retryable errors but allowed under RC, 
+thus resulting in different anomalies unless a locking strategy is applied. 
+That locking strategy is either pessimistic for-update locks or optimistic 
+locks using CAS with versioning.
 
-    create type if not exists account_type as enum ('credit', 'checking');
-    
-    create table if not exists account
-    (
-        id      int            not null default unordered_unique_rowid(),
-        type    account_type   not null,
-        version int            not null default 0,
-        balance numeric(19, 2) not null,
-        name    varchar(128)   not null,
-    
-        primary key (id, type)
-    );
+# Building and Running
 
-## Conflicting Workloads
+## Prerequisites
 
-A brief description of the workload which is concurrently updating the same
-account table with an overlapping set of keys.
+### Building
 
-### Lost Update Workload 
+- Java 17 JDK
+    - https://openjdk.org/projects/jdk/17/
+    - https://www.oracle.com/java/technologies/downloads/#java17
+- Maven 3+ (optional, embedded wrapper available)
+    - https://maven.apache.org/
+
+### Running
+
+- Java 17+ JRE
+- CockroachDB 23.2+ (core or enterprise)
+    - https://www.cockroachlabs.com/docs/releases/
+- PostgreSQL 9+ (optional)
+
+## Install the JDK
+
+Ubuntu:
+
+    sudo apt-get install openjdk-17-jdk
+
+MacOS (using sdkman):
+
+    curl -s "https://get.sdkman.io" | bash
+    sdk list java
+    sdk install java 17.0 (pick version)  
+
+## CockroachDB Setup
+
+Ensure that you are using CockroachDB 23.2 or later and then enable RC with:
+
+    SET CLUSTER SETTING sql.txn.read_committed_isolation.enabled = 'true';
+
+## Build
+
+    ./mvnw clean install
+
+## Run
+
+    java -jar target/chaos.jar --help
+
+# Sample Workloads
+
+A description of the highly contented workloads named by the 
+anomalies they are subject to.
+
+## Lost Update 
 
 Examples:
     
@@ -81,7 +113,7 @@ many ranges while still being able to cause contention.
 This workload is unsafe in RC unless using optimistic "locks" through a CAS operation 
 (version increments) or by using pessimistic `SELECT .. FOR UPDATE` locks at read time.
 
-### Write Skew Workload
+## Write Skew 
 
 Examples:
 
@@ -142,7 +174,7 @@ aggregate `sum` function.
 **Hint:** To have a greater chance to observe anomalies in RC, decrease the `--selection` and/or
 increase `--iterations` with 10x.
 
-### Read Skew Workload
+## Read Skew 
 
 Examples:
 
@@ -155,30 +187,17 @@ constant. Under RC without locks its allowed to read values
 committed by other concurrent transactions and therefore observe
 deviations. 
 
-## CockroachDB Setup
+# Appendix: Schema
 
-Ensure that you are using CockroachDB 23.2 or later and then enable RC with:
-
-    SET CLUSTER SETTING sql.txn.read_committed_isolation.enabled = 'true';
-
-## Build and Run
-
-Install the JDK:
-
-Ubuntu
+    create type if not exists account_type as enum ('credit', 'checking');
     
-    sudo apt-get install openjdk-17-jdk
-
-MacOS using sdkman
-
-    curl -s "https://get.sdkman.io" | bash
-    sdk list java
-    sdk install java 17.0 (pick version)  
-
-Build:
-
-    ./mvnw clean install
-
-Run:
-
-    java -jar target/chaos.jar --help
+    create table if not exists account
+    (
+        id      int            not null default unordered_unique_rowid(),
+        type    account_type   not null,
+        version int            not null default 0,
+        balance numeric(19, 2) not null,
+        name    varchar(128)   not null,
+    
+        primary key (id, type)
+    );

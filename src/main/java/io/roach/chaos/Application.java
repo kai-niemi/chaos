@@ -1,5 +1,14 @@
 package io.roach.chaos;
 
+import io.roach.chaos.jdbc.JdbcUtils;
+import io.roach.chaos.util.AnsiColor;
+import io.roach.chaos.util.AsciiArt;
+import io.roach.chaos.util.Multiplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.sql.DataSource;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
@@ -17,16 +26,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
-import javax.sql.DataSource;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import io.roach.chaos.jdbc.JdbcUtils;
-import io.roach.chaos.util.AnsiColor;
-import io.roach.chaos.util.AsciiArt;
-import io.roach.chaos.util.Multiplier;
-
 public class Application {
     private static final Logger logger = LoggerFactory.getLogger(Application.class);
 
@@ -39,6 +38,7 @@ public class Application {
         output.columnLeft("--cas", "optimistic locking using CAS", "(false)");
         output.columnLeft("--sfu", "pessimistic locking using select-for-update", "(false)");
         output.columnLeft("--debug,--trace", "verbose SQL trace logging", "(false)");
+        output.columnLeft("--export", "export results to chaos.csv file", "(false)");
         output.columnLeft("--skip-create", "skip DDL create script at startup", "(false)");
         output.columnLeft("--skip-init", "skip DML init script at startup", "(false)");
         output.columnLeft("--jitter", "enable exponential backoff jitter", "(false)");
@@ -75,7 +75,7 @@ public class Application {
     public static void main(String[] args) throws Exception {
         Settings settings = parse(args);
 
-        final DataSource dataSource = settings.createDataSource();
+        final DataSource dataSource = settings.getDataSource();
 
         JdbcUtils.execute(dataSource, conn -> {
             JdbcUtils.inspectDatabaseMetadata(conn, (k, v) -> output.column(k + ":", "%s".formatted(v)));
@@ -109,7 +109,7 @@ public class Application {
                         (double) settings.selection / (double) settings.numAccounts * 100.0));
 
         Workload workload = settings.workloadType.getFactory().get();
-        workload.beforeExecution(settings, dataSource, output);
+        workload.beforeExecution(output, settings);
 
         final ExecutorService executorService = Executors.newFixedThreadPool(settings.workers);
         final Deque<Future<List<Duration>>> futures = new ArrayDeque<>();
@@ -123,7 +123,7 @@ public class Application {
                 .forEach(value -> futures.add(executorService.submit(workload)));
 
         int commits = 0;
-        int fail = 0;
+        int fails = 0;
         final List<Duration> allDurations = new ArrayList<>();
         final AtomicInteger totalRetries = new AtomicInteger();
 
@@ -144,11 +144,11 @@ public class Application {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 e.printStackTrace(System.err);
-                fail++;
+                fails++;
                 break;
             } catch (ExecutionException e) { // Mainly if retries are exhausted
                 logger.error("", e.getCause());
-                fail++;
+                fails++;
             }
         }
 
@@ -165,6 +165,8 @@ public class Application {
                 .boxed()
                 .toList();
 
+        executorService.shutdownNow();
+
         output.info("");
         output.header("Totals");
         output.column("Args:", "%s".formatted(Arrays.stream(args).toList()));
@@ -174,7 +176,7 @@ public class Application {
         output.column("Account selection:", "%,d of %,d".formatted(settings.selection, settings.numAccounts));
         output.column("Execution time:", "%s".formatted(Duration.between(startTime, stopTime)));
         output.column("Total commits:", "%,d".formatted(commits));
-        output.column("Total fails:", "%,d".formatted(fail));
+        output.column("Total fails:", "%,d".formatted(fails));
         output.column("Total retries:", "%,d".formatted(totalRetries.get()));
 
         output.header("Timings");
@@ -193,14 +195,39 @@ public class Application {
         output.column("Used CAS:", "%s".formatted(settings.cas ? "yes" : "no"));
         output.column("Isolation level:", "%s".formatted(isolationLevel));
 
-        if (fail > 0) {
-            output.error("There are non-transient errors which invalidates the outcome: %d".formatted(fail));
+        if (fails > 0) {
+            output.error("There are non-transient errors which invalidates the outcome: %d".formatted(fails));
         }
 
         output.header("Outcome");
-        workload.afterExecution(output);
 
-        executorService.shutdownNow();
+        if (settings.export) {
+            try (Exporter exporter = new CsvExporter(Path.of("chaos.csv"))) {
+                exporter.writeHeader(List.of("name", "value", "unit"));
+                exporter.write(List.of("duration", Duration.between(startTime, stopTime), "time"));
+                exporter.write(List.of("threads", settings.workers, "counter"));
+                exporter.write(List.of("level", settings.level, "counter"));
+                exporter.write(List.of("selection", settings.selection, "counter"));
+                exporter.write(List.of("accounts", settings.numAccounts, "counter"));
+                exporter.write(List.of("commits", commits, "counter"));
+                exporter.write(List.of("fails", fails, "counter"));
+                exporter.write(List.of("retries", totalRetries.get(), "counter"));
+                exporter.write(List.of("avgTime", summaryStatistics.getAverage(), "ms"));
+                exporter.write(List.of("cumulativeTime", summaryStatistics.getSum(), "ms"));
+                exporter.write(List.of("minTime", summaryStatistics.getMin(), "ms"));
+                exporter.write(List.of("maxTime", summaryStatistics.getMax(), "ms"));
+                exporter.write(List.of("samples", summaryStatistics.getCount(), "counter"));
+                exporter.write(List.of("P50", percentile(allDurationMillis, .50), "ms"));
+                exporter.write(List.of("P95", percentile(allDurationMillis, .95), "ms"));
+                exporter.write(List.of("P99", percentile(allDurationMillis, .99), "ms"));
+                exporter.write(List.of("P999", percentile(allDurationMillis, .999), "ms"));
+
+                workload.afterExecution(output, exporter);
+            }
+        } else {
+            workload.afterExecution(output, () -> {
+            });
+        }
     }
 
     public static Settings parse(String[] args) {
@@ -219,6 +246,8 @@ public class Application {
                     settings.dialect = Dialect.valueOf(argsList.pop());
                 } else if (arg.equals("--jitter")) {
                     settings.jitter = true;
+                } else if (arg.equals("--export")) {
+                    settings.export = true;
                 } else if (arg.equals("--skip-create")) {
                     settings.skipCreate = true;
                 } else if (arg.equals("--skip-init")) {

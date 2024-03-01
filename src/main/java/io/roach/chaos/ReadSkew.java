@@ -33,10 +33,10 @@ public class ReadSkew extends AbstractWorkload {
     private final BigDecimal tupleSum = new BigDecimal("1000.00");
 
     @Override
-    public void beforeExecution(Settings settings, DataSource dataSource, Output output) throws Exception {
-        super.beforeExecution(settings, dataSource, output);
+    public void beforeExecution(Output output, Settings settings) throws Exception {
+        super.beforeExecution(output, settings);
 
-        this.accountSelection.addAll(JdbcUtils.execute(dataSource,
+        this.accountSelection.addAll(JdbcUtils.execute(settings.getDataSource(),
                 conn -> findRandomAccounts(conn, settings.selection)));
 
         this.discrepancies.clear();
@@ -47,6 +47,8 @@ public class ReadSkew extends AbstractWorkload {
         List<Duration> durations = new ArrayList<>();
 
         ThreadLocalRandom random = ThreadLocalRandom.current();
+
+        DataSource dataSource = settings.getDataSource();
 
         new TransactionTemplate(dataSource, settings.jitter)
                 .executeWithRetries(conn -> {
@@ -95,8 +97,10 @@ public class ReadSkew extends AbstractWorkload {
     }
 
     @Override
-    public void afterExecution(Output output) {
+    public void afterExecution(Output output, Exporter exporter) throws Exception {
         AtomicInteger negativeAccounts = new AtomicInteger();
+
+        DataSource dataSource = settings.getDataSource();
 
         BigDecimal totalNegative =
                 JdbcUtils.execute(dataSource,
@@ -122,10 +126,8 @@ public class ReadSkew extends AbstractWorkload {
         discrepancies
                 .stream()
                 .limit(10)
-                .forEach(tuple -> {
-                    output.error("Observed inconsistent sum for account tuple id: %s (%,.2f) expected %,.2f"
-                            .formatted(tuple.getA(), tuple.getB(), tupleSum));
-                });
+                .forEach(tuple -> output.error("Observed inconsistent sum for account tuple id: %s (%,.2f) expected %,.2f"
+                        .formatted(tuple.getA(), tuple.getB(), tupleSum)));
 
         if (discrepancies.isEmpty()) {
             output.info("No sum discrepancies %s"
@@ -143,5 +145,8 @@ public class ReadSkew extends AbstractWorkload {
         } else {
             output.info("No negative balances %s".formatted(AsciiArt.shrug()));
         }
+
+        exporter.write(List.of("discrepancies", (long) discrepancies.size(), "counter"));
+        exporter.write(List.of("negativeAccounts", (long) negativeAccounts.get(), "counter"));
     }
 }

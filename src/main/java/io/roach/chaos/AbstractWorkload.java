@@ -1,22 +1,20 @@
 package io.roach.chaos;
 
-import java.math.BigDecimal;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import javax.sql.DataSource;
-
 import io.roach.chaos.util.AnsiColor;
 import io.roach.chaos.util.AsciiArt;
+
+import javax.sql.DataSource;
+import java.math.BigDecimal;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class AbstractWorkload implements Workload {
     protected Settings settings;
 
-    protected DataSource dataSource;
-
     @Override
-    public void beforeExecution(Settings settings, DataSource dataSource, Output output) throws Exception {
+    public void beforeExecution(Output output, Settings settings) throws Exception {
         this.settings = settings;
-        this.dataSource = dataSource;
+
+        DataSource dataSource = settings.getDataSource();
 
         if (!settings.skipCreate) {
             AccountRepository.createSchema(dataSource, settings.dialect);

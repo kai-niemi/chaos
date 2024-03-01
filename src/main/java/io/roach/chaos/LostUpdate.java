@@ -1,5 +1,11 @@
 package io.roach.chaos;
 
+import io.roach.chaos.jdbc.JdbcUtils;
+import io.roach.chaos.jdbc.TransactionTemplate;
+import io.roach.chaos.util.AsciiArt;
+import io.roach.chaos.util.Tuple;
+
+import javax.sql.DataSource;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
@@ -9,13 +15,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.IntStream;
-
-import javax.sql.DataSource;
-
-import io.roach.chaos.util.AsciiArt;
-import io.roach.chaos.jdbc.JdbcUtils;
-import io.roach.chaos.jdbc.TransactionTemplate;
-import io.roach.chaos.util.Tuple;
 
 import static io.roach.chaos.AccountRepository.findById;
 import static io.roach.chaos.AccountRepository.findRandomAccounts;
@@ -29,8 +28,10 @@ public class LostUpdate extends AbstractWorkload {
     private BigDecimal initialBalance;
 
     @Override
-    public void beforeExecution(Settings settings, DataSource dataSource, Output output) throws Exception {
-        super.beforeExecution(settings, dataSource, output);
+    public void beforeExecution(Output output, Settings settings) throws Exception {
+        super.beforeExecution(output, settings);
+
+        DataSource dataSource = settings.getDataSource();
 
         this.initialBalance = JdbcUtils.execute(dataSource, AccountRepository::sumTotalBalance);
 
@@ -63,6 +64,8 @@ public class LostUpdate extends AbstractWorkload {
 
         List<Duration> durations = new ArrayList<>();
 
+        DataSource dataSource = settings.getDataSource();
+
         new TransactionTemplate(dataSource, settings.jitter)
                 .executeWithRetries(conn -> {
                     BigDecimal checksum = BigDecimal.ZERO;
@@ -91,7 +94,8 @@ public class LostUpdate extends AbstractWorkload {
     }
 
     @Override
-    public void afterExecution(Output output) {
+    public void afterExecution(Output output, Exporter exporter) throws Exception {
+        DataSource dataSource = settings.getDataSource();
         BigDecimal finalBalance = JdbcUtils.execute(dataSource, AccountRepository::sumTotalBalance);
 
         output.column("Initial total balance:", "%s".formatted(initialBalance));
@@ -105,5 +109,7 @@ public class LostUpdate extends AbstractWorkload {
         } else {
             output.info("You are good! %s".formatted(AsciiArt.shrug()));
         }
+
+        exporter.write(List.of("discrepancies", initialBalance.equals(finalBalance) ? 0 : 1, "counter"));
     }
 }
