@@ -128,11 +128,8 @@ public class Application {
         final AtomicInteger totalRetries = new AtomicInteger();
 
         while (!futures.isEmpty()) {
-            System.out.printf("\r%s%s%s",
-                    AnsiColor.BOLD_BRIGHT_PURPLE.getCode(),
-                    AsciiArt.progressBar(settings.iterations, settings.iterations - futures.size(),
-                            futures.size() + " futures remain"),
-                    AnsiColor.RESET.getCode());
+            AsciiArt.progressBar(settings.iterations, settings.iterations - futures.size(),
+                    futures.size() + " futures remain");
 
             try {
                 List<Duration> stats = futures.pop().get();

@@ -1,6 +1,5 @@
 package io.roach.chaos;
 
-import io.roach.chaos.util.AnsiColor;
 import io.roach.chaos.util.AsciiArt;
 
 import javax.sql.DataSource;
@@ -24,11 +23,8 @@ public abstract class AbstractWorkload implements Workload {
             AtomicInteger c = new AtomicInteger();
             AccountRepository.createAccounts(dataSource,
                     new BigDecimal("500.00"), settings.numAccounts,
-                    v -> System.out.printf("\r%s%s%s",
-                            AnsiColor.BOLD_BRIGHT_CYAN.getCode(),
-                            AsciiArt.progressBar(settings.numAccounts, c.addAndGet(v),
-                                    "Creating %,d accounts".formatted(settings.numAccounts)),
-                            AnsiColor.RESET.getCode()));
+                    v -> AsciiArt.progressBar(settings.numAccounts, c.addAndGet(v),
+                            "Creating %,d accounts".formatted(settings.numAccounts)));
         }
     }
 }
