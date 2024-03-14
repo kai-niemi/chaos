@@ -41,6 +41,7 @@ public class Application {
         output.columnLeft("--export", "export results to chaos.csv file", "(false)");
         output.columnLeft("--skip-create", "skip DDL create script at startup", "(false)");
         output.columnLeft("--skip-init", "skip DML init script at startup", "(false)");
+        output.columnLeft("--skip-retry", "skip client-side retries", "(false)");
         output.columnLeft("--jitter", "enable exponential backoff jitter", "(false)");
         output.info("  Hint: skip jitter for more comparable results between isolation levels.");
         output.columnLeft("--dialect <db>", "database dialect ", "crdb|psql (crdb)");
@@ -84,6 +85,7 @@ public class Application {
 
         final String version = JdbcUtils.execute(dataSource,
                 conn -> JdbcUtils.selectOne(conn, "SELECT version()", String.class));
+        final String driver = JdbcUtils.execute(dataSource, JdbcUtils::driverVersion);
         final String isolationLevel = JdbcUtils.execute(dataSource,
                 conn -> JdbcUtils.selectOne(conn, "SHOW transaction_isolation", String.class));
 
@@ -128,7 +130,7 @@ public class Application {
         final AtomicInteger totalRetries = new AtomicInteger();
 
         while (!futures.isEmpty()) {
-            AsciiArt.progressBar(settings.iterations, settings.iterations - futures.size(),
+            AsciiArt.printProgressBar(settings.iterations, settings.iterations - futures.size(),
                     futures.size() + " futures remain");
 
             try {
@@ -168,6 +170,7 @@ public class Application {
         output.header("Totals");
         output.column("Args:", "%s".formatted(Arrays.stream(args).toList()));
         output.column("Using:", "%s".formatted(version));
+        output.column("Driver:", "%s".formatted(driver));
         output.column("Threads:", "%s".formatted(settings.workers));
         output.column("Contention level:", "%s".formatted(settings.level));
         output.column("Account selection:", "%,d of %,d".formatted(settings.selection, settings.numAccounts));
@@ -193,7 +196,7 @@ public class Application {
         output.column("Isolation level:", "%s".formatted(isolationLevel));
 
         if (fails > 0) {
-            output.error("There are non-transient errors which invalidates the outcome: %d".formatted(fails));
+            output.error("There are %d non-transient errors that may invalidate the final outcome!".formatted(fails));
         }
 
         output.header("Outcome");
@@ -249,6 +252,8 @@ public class Application {
                     settings.skipCreate = true;
                 } else if (arg.equals("--skip-init")) {
                     settings.skipInit = true;
+                } else if (arg.equals("--skip-retry")) {
+                    settings.skipRetry = true;
                 } else if (arg.equals("--rc") || arg.equals("--read-committed")) {
                     settings.readCommitted = true;
                 } else if (arg.equals("--sfu") || arg.equals("--select-for-update")) {
@@ -302,6 +307,8 @@ public class Application {
                     settings.url = argsList.pop();
                 } else if (arg.equals("--dev")) {
                     settings.url = "jdbc:postgresql://192.168.1.99:26257/defaultdb?sslmode=disable";
+                } else if (arg.equals("--dev2")) {
+                    settings.url = "jdbc:cockroachdb://192.168.1.99:26257/defaultdb?sslmode=disable";
                 } else if (arg.equals("--user")) {
                     if (argsList.isEmpty()) {
                         printUsageAndQuit("Expected value for " + arg);

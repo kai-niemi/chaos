@@ -24,7 +24,7 @@ public abstract class AsciiArt {
         return "(ノಠ益ಠ)ノ彡┻━┻";
     }
 
-    public static void progressBar(long total, long current, String label) {
+    public static void printProgressBar(long total, long current, String label) {
         double p = (current + 0.0) / (Math.max(1, total) + 0.0);
         int ticks = Math.max(0, (int) (30 * p) - 1);
         String bar = "%,9d/%-,9d %5.1f%% [%-30s] %s".formatted(

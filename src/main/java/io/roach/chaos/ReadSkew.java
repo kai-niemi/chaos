@@ -50,8 +50,8 @@ public class ReadSkew extends AbstractWorkload {
 
         DataSource dataSource = settings.getDataSource();
 
-        new TransactionTemplate(dataSource, settings.jitter)
-                .executeWithRetries(conn -> {
+        new TransactionTemplate(dataSource, settings.jitter, !settings.skipRetry)
+                .execute(conn -> {
                     // Drain queue and read each account in tuple separately (rather than using aggregation)
                     Tuple<Account.Id, Account.Id> tuple = queue.poll();
                     while (tuple != null) {

@@ -66,8 +66,8 @@ public class LostUpdate extends AbstractWorkload {
 
         DataSource dataSource = settings.getDataSource();
 
-        new TransactionTemplate(dataSource, settings.jitter)
-                .executeWithRetries(conn -> {
+        new TransactionTemplate(dataSource, settings.jitter, !settings.skipRetry)
+                .execute(conn -> {
                     BigDecimal checksum = BigDecimal.ZERO;
 
                     for (Tuple<Account, BigDecimal> leg : legs) {

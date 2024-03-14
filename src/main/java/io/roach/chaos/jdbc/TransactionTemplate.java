@@ -27,9 +27,19 @@ public class TransactionTemplate {
 
     private final boolean retryJitter;
 
-    public TransactionTemplate(DataSource ds, boolean retryJitter) {
+    private final boolean retries;
+
+    public TransactionTemplate(DataSource ds, boolean retryJitter, boolean retries) {
         this.ds = ds;
         this.retryJitter = retryJitter;
+        this.retries = retries;
+    }
+
+    public <T> T execute(TransactionCallback<T> action,
+                         Consumer<List<Duration>> transactionTimes) {
+        return retries
+                ? executeWithRetries(action, transactionTimes)
+                : executeWithoutRetries(action, transactionTimes);
     }
 
     public <T> T executeWithRetries(TransactionCallback<T> action,
@@ -75,6 +85,33 @@ public class TransactionTemplate {
         }
 
         throw new DataAccessException("Too many transient errors %d - giving up".formatted(MAX_RETRIES));
+    }
+
+    public <T> T executeWithoutRetries(TransactionCallback<T> action,
+                                       Consumer<List<Duration>> transactionTimes) {
+        final List<Duration> times = new ArrayList<>();
+
+        final Instant startTime = Instant.now();
+
+        try (Connection conn = ds.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                T result = action.doInTransaction(conn);
+                conn.commit();
+                times.add(Duration.between(startTime, Instant.now()));
+                transactionTimes.accept(times);
+                return result;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw new DataAccessException(e);
+            } catch (Throwable ex) {
+                conn.rollback();
+                throw new UndeclaredThrowableException(ex,
+                        "TransactionCallback threw undeclared checked exception");
+            }
+        } catch (SQLException e) {
+            throw new DataAccessException(e);
+        }
     }
 
     private long backoffMillis(int numCalls) {

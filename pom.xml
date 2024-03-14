@@ -76,4 +76,30 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>crdb-jdbc-driver</id>
+            <dependencies>
+                <dependency>
+                    <groupId>io.cockroachdb.jdbc</groupId>
+                    <artifactId>cockroachdb-jdbc-driver</artifactId>
+                    <version>1.2.0</version>
+                    <scope>runtime</scope>
+                </dependency>
+            </dependencies>
+            <build>
+            </build>
+            <repositories>
+                <repository>
+                    <id>github</id>
+                    <name>GitHub CockroachDB Apache Maven Packages</name>
+                    <url>https://maven.pkg.github.com/cloudneutral/cockroachdb-jdbc</url>
+                    <snapshots>
+                        <enabled>true</enabled>
+                    </snapshots>
+                </repository>
+            </repositories>
+        </profile>
+    </profiles>
 </project>

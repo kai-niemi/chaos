@@ -55,6 +55,11 @@ public abstract class JdbcUtils {
         return selectOne(connection, "select version()", String.class);
     }
 
+    public static String driverVersion(Connection connection) throws SQLException {
+        DatabaseMetaData metaData = connection.getMetaData();
+        return "%s %s".formatted(metaData.getDriverName(), metaData.getDriverVersion());
+    }
+
     public static boolean isCockroachDB(Connection connection) throws SQLException {
         return databaseVersion(connection).contains("CockroachDB");
     }

@@ -41,8 +41,8 @@ public class WriteSkew extends AbstractWorkload {
 
         List<Duration> durations = new ArrayList<>();
 
-        new TransactionTemplate(settings.getDataSource(), settings.jitter)
-                .executeWithRetries(conn -> {
+        new TransactionTemplate(settings.getDataSource(), settings.jitter, !settings.skipRetry)
+                .execute(conn -> {
                     Account target = selectRandom(accountSelection);
 
                     BigDecimal amount = BigDecimal.valueOf(random.nextDouble(1, 50))

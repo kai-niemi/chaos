@@ -1,13 +1,15 @@
 package io.roach.chaos;
 
+import javax.sql.DataSource;
+
+import org.slf4j.LoggerFactory;
+
 import com.zaxxer.hikari.HikariDataSource;
+
 import net.ttddyy.dsproxy.listener.logging.DefaultQueryLogEntryCreator;
 import net.ttddyy.dsproxy.listener.logging.SLF4JLogLevel;
 import net.ttddyy.dsproxy.listener.logging.SLF4JQueryLoggingListener;
 import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder;
-import org.slf4j.LoggerFactory;
-
-import javax.sql.DataSource;
 
 public class Settings {
     String url = "jdbc:postgresql://localhost:26257/defaultdb?sslmode=disable";
@@ -33,6 +35,8 @@ public class Settings {
     boolean skipCreate;
 
     boolean skipInit;
+
+    boolean skipRetry;
 
     Dialect dialect = Dialect.crdb;
 
@@ -65,6 +69,14 @@ public class Settings {
         hikariDS.setMinimumIdle(workers);
         hikariDS.setTransactionIsolation(
                 readCommitted ? "TRANSACTION_READ_COMMITTED" : "TRANSACTION_SERIALIZABLE");
+
+        if (url.startsWith("jdbc:cockroachdb")) {
+            hikariDS.setDriverClassName("io.cockroachdb.jdbc.CockroachDriver");
+            hikariDS.addDataSourceProperty("implicitSelectForUpdate", "true");
+            hikariDS.addDataSourceProperty("retryTransientErrors", "true");
+            hikariDS.addDataSourceProperty("retryConnectionErrors", "true");
+            hikariDS.addDataSourceProperty("useCockroachMetadata", "true");
+        }
 
         DefaultQueryLogEntryCreator creator = new DefaultQueryLogEntryCreator();
         creator.setMultiline(true);
