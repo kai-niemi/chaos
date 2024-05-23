@@ -16,10 +16,6 @@ public abstract class AsciiArt {
         return "¯\\_(ツ)_/¯";
     }
 
-    public static String flipTableGently() {
-        return "(╯°□°)╯︵ ┻━┻";
-    }
-
     public static String flipTableRoughly() {
         return "(ノಠ益ಠ)ノ彡┻━┻";
     }

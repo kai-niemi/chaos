@@ -1,5 +1,6 @@
-package io.roach.chaos;
+package io.roach.chaos.workload;
 
+import io.roach.chaos.Settings;
 import io.roach.chaos.util.AsciiArt;
 
 import javax.sql.DataSource;

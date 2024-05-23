@@ -1,4 +1,4 @@
-package io.roach.chaos;
+package io.roach.chaos.workload;
 
 public enum LockType {
     none,

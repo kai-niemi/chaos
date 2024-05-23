@@ -1,5 +1,6 @@
-package io.roach.chaos;
+package io.roach.chaos.workload;
 
+import io.roach.chaos.Settings;
 import io.roach.chaos.jdbc.JdbcUtils;
 import io.roach.chaos.jdbc.TransactionTemplate;
 import io.roach.chaos.util.AsciiArt;
@@ -14,7 +15,7 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static io.roach.chaos.AccountRepository.findRandomAccounts;
+import static io.roach.chaos.workload.AccountRepository.findRandomAccounts;
 import static io.roach.chaos.util.RandomData.selectRandom;
 
 public class WriteSkew extends AbstractWorkload {

@@ -1,4 +1,4 @@
-package io.roach.chaos;
+package io.roach.chaos.workload;
 
 import java.math.BigDecimal;
 import java.net.URI;
@@ -127,7 +127,7 @@ public abstract class AccountRepository {
         try (PreparedStatement ps = conn.prepareStatement(
                 "SELECT * FROM account WHERE id = ? AND type = ?::account_type"
                         + (lock == LockType.for_update ? " FOR UPDATE" :
-                                lock == LockType.for_share ? " FOR SHARE" : ""))) {
+                        lock == LockType.for_share ? " FOR SHARE" : ""))) {
             ps.setLong(1, id.getId());
             ps.setString(2, id.getType().name());
 
@@ -233,7 +233,7 @@ public abstract class AccountRepository {
         }
     }
 
-    static BigDecimal sumAccountBalance(Connection connection, Account.Id id)
+    public static BigDecimal sumAccountBalance(Connection connection, Account.Id id)
             throws SQLException {
         try (PreparedStatement ps = connection.prepareStatement(
                 "select sum(balance) from account where id=?")) {

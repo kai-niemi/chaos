@@ -1,4 +1,4 @@
-package io.roach.chaos;
+package io.roach.chaos.workload;
 
 import java.io.IOException;
 import java.nio.file.Files;

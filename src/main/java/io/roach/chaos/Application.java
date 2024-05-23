@@ -4,6 +4,13 @@ import io.roach.chaos.jdbc.JdbcUtils;
 import io.roach.chaos.util.AnsiColor;
 import io.roach.chaos.util.AsciiArt;
 import io.roach.chaos.util.Multiplier;
+import io.roach.chaos.workload.CsvExporter;
+import io.roach.chaos.workload.Dialect;
+import io.roach.chaos.workload.Exporter;
+import io.roach.chaos.workload.LockType;
+import io.roach.chaos.workload.Output;
+import io.roach.chaos.workload.Workload;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

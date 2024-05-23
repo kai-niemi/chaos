@@ -2,6 +2,11 @@ package io.roach.chaos;
 
 import java.util.function.Supplier;
 
+import io.roach.chaos.workload.LostUpdate;
+import io.roach.chaos.workload.ReadSkew;
+import io.roach.chaos.workload.Workload;
+import io.roach.chaos.workload.WriteSkew;
+
 public enum WorkloadType {
     lost_update(LostUpdate::new) {
         @Override

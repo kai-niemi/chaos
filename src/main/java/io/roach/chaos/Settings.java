@@ -6,49 +6,51 @@ import org.slf4j.LoggerFactory;
 
 import com.zaxxer.hikari.HikariDataSource;
 
+import io.roach.chaos.workload.Dialect;
+import io.roach.chaos.workload.LockType;
 import net.ttddyy.dsproxy.listener.logging.DefaultQueryLogEntryCreator;
 import net.ttddyy.dsproxy.listener.logging.SLF4JLogLevel;
 import net.ttddyy.dsproxy.listener.logging.SLF4JQueryLoggingListener;
 import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder;
 
 public class Settings {
-    String url = "jdbc:postgresql://localhost:26257/defaultdb?sslmode=disable";
+    public String url = "jdbc:postgresql://localhost:26257/defaultdb?sslmode=disable";
 
-    String user = "root";
+    public String user = "root";
 
-    String password = "";
+    public String password = "";
 
-    WorkloadType workloadType;
+    public WorkloadType workloadType;
 
-    LockType lock = LockType.none;
+    public LockType lock = LockType.none;
 
-    boolean cas;
+    public boolean cas;
 
-    boolean jitter;
+    public boolean jitter;
 
-    boolean export;
+    public boolean export;
 
-    boolean readCommitted = false;
+    public boolean readCommitted = false;
 
-    boolean debugProxy = false;
+    public boolean debugProxy = false;
 
-    boolean skipCreate;
+    public boolean skipCreate;
 
-    boolean skipInit;
+    public boolean skipInit;
 
-    boolean skipRetry;
+    public boolean skipRetry;
 
-    Dialect dialect = Dialect.crdb;
+    public Dialect dialect = Dialect.crdb;
 
-    int workers = Runtime.getRuntime().availableProcessors() * 2;
+    public int workers = Runtime.getRuntime().availableProcessors() * 2;
 
-    int level = 8;
+    public int level = 8;
 
-    int numAccounts = 50_000;
+    public int numAccounts = 50_000;
 
-    int selection = 500;
+    public int selection = 500;
 
-    int iterations = 1000;
+    public int iterations = 1000;
 
     private DataSource dataSource;
 

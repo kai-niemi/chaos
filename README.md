@@ -33,7 +33,7 @@ locks using CAS with versioning.
 ### Running
 
 - Java 17+ JRE
-- CockroachDB 23.2+ (core or enterprise)
+- CockroachDB 23.2 or later (24.1 and enterprise license for read-committed)
     - https://www.cockroachlabs.com/docs/releases/
 - PostgreSQL 9+ (optional)
 

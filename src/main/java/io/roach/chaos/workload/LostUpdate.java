@@ -1,5 +1,6 @@
-package io.roach.chaos;
+package io.roach.chaos.workload;
 
+import io.roach.chaos.Settings;
 import io.roach.chaos.jdbc.JdbcUtils;
 import io.roach.chaos.jdbc.TransactionTemplate;
 import io.roach.chaos.util.AsciiArt;
@@ -16,10 +17,10 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.IntStream;
 
-import static io.roach.chaos.AccountRepository.findById;
-import static io.roach.chaos.AccountRepository.findRandomAccounts;
-import static io.roach.chaos.AccountRepository.updateBalance;
-import static io.roach.chaos.AccountRepository.updateBalanceCAS;
+import static io.roach.chaos.workload.AccountRepository.findById;
+import static io.roach.chaos.workload.AccountRepository.findRandomAccounts;
+import static io.roach.chaos.workload.AccountRepository.updateBalance;
+import static io.roach.chaos.workload.AccountRepository.updateBalanceCAS;
 import static io.roach.chaos.util.RandomData.selectRandom;
 
 public class LostUpdate extends AbstractWorkload {
