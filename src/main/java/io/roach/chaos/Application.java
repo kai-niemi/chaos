@@ -34,38 +34,43 @@ public class Application {
         output.info("");
         output.header("Common options:");
         output.columnLeft("--help", "this help");
-        output.columnLeft("--rc", "read-committed isolation", "(1SR)");
-        output.columnLeft("--cas", "optimistic locking using CAS", "(false)");
-        output.columnLeft("--sfu", "pessimistic locking using select-for-update", "(false)");
         output.columnLeft("--debug,--trace", "verbose SQL trace logging", "(false)");
         output.columnLeft("--export", "export results to chaos.csv file", "(false)");
-        output.columnLeft("--skip-create", "skip DDL create script at startup", "(false)");
-        output.columnLeft("--skip-init", "skip DML init script at startup", "(false)");
-        output.columnLeft("--skip-retry", "skip client-side retries", "(false)");
-        output.columnLeft("--jitter", "enable exponential backoff jitter", "(false)");
-        output.info("  Hint: skip jitter for more comparable results between isolation levels.");
-        output.columnLeft("--dialect <db>", "database dialect ", "crdb|psql (crdb)");
-        output.columnLeft("--threads <num>", "max number of threads", "(host vCPUs x 2)");
-        output.columnLeft("--iterations <num>", "number of cycles to run", "(1K)");
-        output.columnLeft("--accounts <num>", "number of accounts to create and randomize between", "(50K)");
-        output.columnLeft("--selection <num>", "random selection of accounts to pick between", "(500)");
-        output.info("  Hint: decrease selection to observe anomalies in --rc.");
         output.info("");
 
-        output.header("Lost update workload options:");
-        output.columnLeft("--contention <num>", "contention level", "(8, must be a multiple of 2)");
-        output.info("");
-
-        output.header("Connection options include:");
+        output.header("Connection options:");
         output.columnLeft("--url", "datasource URL", "(jdbc:postgresql://localhost:26257/defaultdb?sslmode=disable)");
         output.columnLeft("--user", "datasource user name", "(root)");
         output.columnLeft("--password", "datasource password", "(<empty>)");
+        output.columnLeft("--dialect <db>", "database dialect ", "crdb|psql (crdb)");
         output.info("");
 
-        output.header("Workload one of:");
+        output.header("DDL/DML options:");
+        output.columnLeft("--skip-create", "skip DDL create script at startup", "(false)");
+        output.columnLeft("--skip-init", "skip DML init script at startup", "(false)");
+        output.columnLeft("--skip-retry", "skip client-side retries", "(false)");
+        output.info("");
+
+        output.header("Workload options:");
+        output.columnLeft("--rc", "read-committed isolation", "(1SR)");
+        output.columnLeft("--cas", "optimistic locking using CAS", "(false)");
+        output.columnLeft("--sfu", "pessimistic locking using select-for-update", "(false)");
+
+        int workers = Runtime.getRuntime().availableProcessors() * 2;
+        output.columnLeft("--threads <num>", "max number of threads", "(host vCPUs x 2 = " + workers + ")");
+
+        output.columnLeft("--iterations <num>", "number of cycles to run", "(1K)");
+        output.columnLeft("--accounts <num>", "number of accounts to create and randomize between", "(50K)");
+        output.columnLeft("--contention <num>", "contention level in lost update workload", "(8, must be a multiple of 2)");
+        output.columnLeft("--selection <num>", "random selection of accounts to pick between", "(500)");
+        output.info("  Hint: decrease selection to observe anomalies in --rc.");
+        output.columnLeft("--jitter", "enable exponential backoff jitter", "(false)");
+        output.info("  Hint: skip jitter for more comparable results between isolation levels.");
+        output.info("");
+
+        output.header("Workload names:");
         EnumSet.allOf(WorkloadType.class).forEach(
                 workloadType -> output.columnLeft(workloadType.name(), workloadType.note()));
-
         output.info("");
 
         output.error(reason);
@@ -307,8 +312,6 @@ public class Application {
                     settings.url = argsList.pop();
                 } else if (arg.equals("--dev")) {
                     settings.url = "jdbc:postgresql://192.168.1.99:26257/defaultdb?sslmode=disable";
-                } else if (arg.equals("--dev2")) {
-                    settings.url = "jdbc:cockroachdb://192.168.1.99:26257/defaultdb?sslmode=disable";
                 } else if (arg.equals("--user")) {
                     if (argsList.isEmpty()) {
                         printUsageAndQuit("Expected value for " + arg);
@@ -328,10 +331,15 @@ public class Application {
                 try {
                     settings.workloadType = WorkloadType.valueOf(arg);
                 } catch (IllegalArgumentException e) {
-                    printUsageAndQuit("Unknown arg: " + arg);
+                    printUsageAndQuit("Unknown workload: " + arg);
                 }
             }
         }
+
+        if (settings.workloadType == null) {
+            printUsageAndQuit("Expected workload name");
+        }
+
         return settings;
     }
 

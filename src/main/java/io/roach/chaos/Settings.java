@@ -18,7 +18,7 @@ public class Settings {
 
     String password = "";
 
-    WorkloadType workloadType = WorkloadType.lost_update;
+    WorkloadType workloadType;
 
     boolean lock;
 

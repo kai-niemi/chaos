@@ -94,7 +94,7 @@ public class LostUpdate extends AbstractWorkload {
     }
 
     @Override
-    public void afterExecution(Output output, Exporter exporter) throws Exception {
+    public void afterExecution(Output output, Exporter exporter) {
         DataSource dataSource = settings.getDataSource();
         BigDecimal finalBalance = JdbcUtils.execute(dataSource, AccountRepository::sumTotalBalance);
 

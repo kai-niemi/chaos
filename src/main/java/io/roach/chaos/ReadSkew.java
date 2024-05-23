@@ -97,7 +97,7 @@ public class ReadSkew extends AbstractWorkload {
     }
 
     @Override
-    public void afterExecution(Output output, Exporter exporter) throws Exception {
+    public void afterExecution(Output output, Exporter exporter) {
         AtomicInteger negativeAccounts = new AtomicInteger();
 
         DataSource dataSource = settings.getDataSource();

@@ -77,7 +77,7 @@ public class WriteSkew extends AbstractWorkload {
     }
 
     @Override
-    public void afterExecution(Output output, Exporter exporter) throws Exception {
+    public void afterExecution(Output output, Exporter exporter) {
         output.column("Balance update accepts:", "%d".formatted(accept.get()));
         output.column("Balance update rejects:", "%d".formatted(reject.get()));
 
