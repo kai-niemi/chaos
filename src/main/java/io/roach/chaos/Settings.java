@@ -20,7 +20,7 @@ public class Settings {
 
     WorkloadType workloadType;
 
-    boolean lock;
+    LockType lock = LockType.none;
 
     boolean cas;
 

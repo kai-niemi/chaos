@@ -115,18 +115,19 @@ public abstract class AccountRepository {
 
                     ps.executeLargeUpdate();
 
-                    progress.accept(generatedIds.size()*2);
+                    progress.accept(generatedIds.size() * 2);
                 }
                 return null;
             });
         }
     }
 
-    public static Account findById(Connection conn, Account.Id id, boolean lock)
+    public static Account findById(Connection conn, Account.Id id, LockType lock)
             throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(
                 "SELECT * FROM account WHERE id = ? AND type = ?::account_type"
-                        + (lock ? " FOR UPDATE" : ""))) {
+                        + (lock == LockType.for_update ? " FOR UPDATE" :
+                                lock == LockType.for_share ? " FOR SHARE" : ""))) {
             ps.setLong(1, id.getId());
             ps.setString(2, id.getType().name());
 

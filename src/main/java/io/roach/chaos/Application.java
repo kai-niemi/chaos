@@ -54,7 +54,8 @@ public class Application {
         output.header("Workload options:");
         output.columnLeft("--rc", "read-committed isolation", "(1SR)");
         output.columnLeft("--cas", "optimistic locking using CAS", "(false)");
-        output.columnLeft("--sfu", "pessimistic locking using select-for-update", "(false)");
+        output.columnLeft("--sfu", "pessimistic locking using select-for-update", "(none)");
+        output.columnLeft("--sfs", "pessimistic locking using select-for-share", "(none)");
 
         int workers = Runtime.getRuntime().availableProcessors() * 2;
         output.columnLeft("--threads <num>", "max number of threads", "(host vCPUs x 2 = " + workers + ")");
@@ -108,6 +109,7 @@ public class Application {
 
         output.header("Workload Overview");
         output.column("Isolation level:", "%s".formatted(isolationLevel));
+        output.column("Lock type:", "%s".formatted(settings.lock));
         output.column("Workload:", "%s".formatted(settings.workloadType.name()));
         output.column("Threads:", "%d".formatted(settings.workers));
         output.column("Accounts:", "%d".formatted(settings.numAccounts));
@@ -196,7 +198,7 @@ public class Application {
         output.column("P999 latency:", "%.1f ms".formatted(percentile(allDurationMillis, .999)));
 
         output.header("Safety");
-        output.column("Used locks (sfu):", "%s".formatted(settings.lock ? "yes" : "no"));
+        output.column("Lock type:", "%s".formatted(settings.lock));
         output.column("Used CAS:", "%s".formatted(settings.cas ? "yes" : "no"));
         output.column("Isolation level:", "%s".formatted(isolationLevel));
 
@@ -262,7 +264,9 @@ public class Application {
                 } else if (arg.equals("--rc") || arg.equals("--read-committed")) {
                     settings.readCommitted = true;
                 } else if (arg.equals("--sfu") || arg.equals("--select-for-update")) {
-                    settings.lock = true;
+                    settings.lock = LockType.for_update;
+                } else if (arg.equals("--sfs") || arg.equals("--select-for-share")) {
+                    settings.lock = LockType.for_share;
                 } else if (arg.equals("--cas") || arg.equals("--compare-and-set")) {
                     settings.cas = true;
                 } else if (arg.equals("--contention")) {
