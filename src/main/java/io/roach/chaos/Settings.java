@@ -14,7 +14,7 @@ import net.ttddyy.dsproxy.listener.logging.SLF4JQueryLoggingListener;
 import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder;
 
 public class Settings {
-    public String url = "jdbc:postgresql://localhost:26257/defaultdb?sslmode=disable";
+    public String url = "jdbc:postgresql://localhost:26257/chaos?sslmode=disable";
 
     public String user = "root";
 

@@ -46,7 +46,7 @@ public class Application {
         output.info("");
 
         output.header("Connection options:");
-        output.columnLeft("--url", "datasource URL", "(jdbc:postgresql://localhost:26257/defaultdb?sslmode=disable)");
+        output.columnLeft("--url", "datasource URL", "(jdbc:postgresql://localhost:26257/chaos?sslmode=disable)");
         output.columnLeft("--user", "datasource user name", "(root)");
         output.columnLeft("--password", "datasource password", "(<empty>)");
         output.columnLeft("--dialect <db>", "database dialect ", "crdb|psql (crdb)");
@@ -322,7 +322,7 @@ public class Application {
                     }
                     settings.url = argsList.pop();
                 } else if (arg.equals("--dev")) {
-                    settings.url = "jdbc:postgresql://192.168.1.99:26257/defaultdb?sslmode=disable";
+                    settings.url = "jdbc:postgresql://192.168.1.99:26257/chaos?sslmode=disable";
                 } else if (arg.equals("--user")) {
                     if (argsList.isEmpty()) {
                         printUsageAndQuit("Expected value for " + arg);

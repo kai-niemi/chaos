@@ -53,7 +53,11 @@ MacOS (using sdkman):
 
 Ensure that you are using CockroachDB 23.2 or later and then enable RC with:
 
-    SET CLUSTER SETTING sql.txn.read_committed_isolation.enabled = 'true';
+    cockroach sql --insecure -e "SET CLUSTER SETTING sql.txn.read_committed_isolation.enabled = 'true'"
+
+Create the database:
+
+    cockroach sql --insecure -e "create database chaos"
 
 ## Build
 
@@ -65,8 +69,7 @@ Ensure that you are using CockroachDB 23.2 or later and then enable RC with:
 
 # Sample Workloads
 
-A description of the highly contented workloads named by the 
-anomalies they are subject to.
+A description of the highly contented workloads named by the anomalies they are subject to.
 
 ## Lost Update 
 
