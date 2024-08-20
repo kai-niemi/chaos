@@ -1,0 +1,8 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/chaos
+    username: root
+    password: root
+chaos:
+  dialect: psql
+  init-file: "/db/create-psql.sql"

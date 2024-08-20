@@ -1,4 +1,4 @@
-package io.roach.chaos.workload;
+package io.roach.chaos.model;
 
 public enum AccountType {
     checking,

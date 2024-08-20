@@ -1,0 +1,8 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/chaos
+    username: root
+#    password: root
+chaos:
+  dialect: mysql
+  init-file: "/db/create-mysql.sql"

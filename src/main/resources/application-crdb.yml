@@ -1,0 +1,8 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:26257/chaos?sslmode=disable
+    username: root
+    password:
+chaos:
+  dialect: crdb
+  init-file: "/db/create-crdb.sql"

@@ -3,10 +3,6 @@ package io.roach.chaos.util;
 import java.util.Objects;
 
 public class Tuple<A, B> {
-    public static <A, B> Tuple<A, B> of(A a, B b) {
-        return new Tuple<>(a, b);
-    }
-
     private final A a;
 
     private final B b;
@@ -14,6 +10,10 @@ public class Tuple<A, B> {
     public Tuple(A a, B b) {
         this.a = a;
         this.b = b;
+    }
+
+    public static <A, B> Tuple<A, B> of(A a, B b) {
+        return new Tuple<>(a, b);
     }
 
     public A getA() {

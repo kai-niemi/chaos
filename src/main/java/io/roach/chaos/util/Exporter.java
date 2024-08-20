@@ -1,4 +1,4 @@
-package io.roach.chaos.workload;
+package io.roach.chaos.util;
 
 import java.io.Closeable;
 import java.util.List;

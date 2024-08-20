@@ -2,12 +2,17 @@ package io.roach.chaos.workload;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.Callable;
 
-import io.roach.chaos.Settings;
+import io.roach.chaos.util.Exporter;
 
-public interface Workload extends Callable<List<Duration>> {
-    void beforeExecution(Output output, Settings settings) throws Exception;
+public interface Workload {
+    String databaseVersion();
 
-    void afterExecution(Output output, Exporter exporter) throws Exception;
+    String isolationLevel();
+
+    void doBeforeExecution();
+
+    List<Duration> doExecute();
+
+    void doAfterExecution(Exporter exporter);
 }

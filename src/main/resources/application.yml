@@ -1,0 +1,24 @@
+########################
+# Spring boot properties
+# http://docs.spring.io/spring-boot/docs/current/reference/html/common-application-properties.html
+########################
+spring:
+  profiles:
+    active:
+  output:
+    ansi:
+      enabled: ALWAYS
+  datasource:
+    url: jdbc:postgresql://localhost:26257/chaos?sslmode=disable
+    username: root
+    hikari:
+      connection-test-query: SELECT 1
+      connection-timeout: 15000
+      validation-timeout: 5000
+      register-mbeans: false
+      initialization-fail-timeout: -1
+      maximum-pool-size: 128
+      minimum-idle: 8
+logging:
+  pattern:
+    console: "%clr(%d{${LOG_DATEFORMAT_PATTERN:HH:mm:ss.SSS}}){faint} %clr(${LOG_LEVEL_PATTERN:%5p}) [%t] %clr([%logger{39}]){cyan} %m%n${LOG_EXCEPTION_CONVERSION_WORD:%wEx}"
