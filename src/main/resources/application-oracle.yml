@@ -1,8 +1,6 @@
 spring:
   datasource:
-    url: jdbc:oracle:thin:@//localhost:1521/freepdb1
-    username: system
-    password: root
+    driver-class-name: oracle.jdbc.OracleDriver
 chaos:
   dialect: oracle
   init-file: "/db/create-oracle.sql"

@@ -1,8 +1,6 @@
 package io.roach.chaos.repository;
 
 import java.math.BigDecimal;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -43,13 +41,4 @@ public interface AccountRepository {
     void findNegativeBalances(Consumer<Pair<Long, BigDecimal>> consumer);
 
     BigDecimal sumTotalBalance();
-
-    default Account toAccount(ResultSet res) throws SQLException {
-        return new Account()
-                .setId(new Account.Id(
-                        res.getLong("id"),
-                        res.getString("type")))
-                .setBalance(res.getBigDecimal("balance"))
-                .setVersion(res.getInt("version"));
-    }
 }

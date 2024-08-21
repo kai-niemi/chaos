@@ -16,6 +16,10 @@ public abstract class ConsoleOutput {
         print(text, AnsiColor.BOLD_BRIGHT_RED);
     }
 
+    public static void warn(String text) {
+        print(text, AnsiColor.BOLD_BRIGHT_PURPLE);
+    }
+
     public static void print(String text, AnsiColor color) {
         System.out.printf("%s%s%s\n", color.getCode(), text, AnsiColor.RESET.getCode());
     }

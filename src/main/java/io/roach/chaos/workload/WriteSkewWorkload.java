@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -13,6 +14,7 @@ import org.springframework.transaction.support.TransactionCallback;
 
 import io.roach.chaos.model.Account;
 import io.roach.chaos.model.AccountType;
+import io.roach.chaos.model.LockType;
 import io.roach.chaos.util.AsciiArt;
 import io.roach.chaos.util.ConsoleOutput;
 import io.roach.chaos.util.Exporter;
@@ -73,6 +75,13 @@ public class WriteSkewWorkload extends AbstractAccountWorkload {
     }
 
     @Override
+    protected void preValidate() {
+        if (EnumSet.of(LockType.FOR_SHARE, LockType.FOR_UPDATE).contains(settings.getLockType())) {
+            ConsoleOutput.warn("This workload can't use pessimistic locks only CAS");
+        }
+    }
+
+    @Override
     protected void beforeExecution() {
         this.accountSelection.addAll(accountRepository.findRandomAccounts(settings.getSelection()));
         this.accept.set(0);
@@ -83,11 +92,10 @@ public class WriteSkewWorkload extends AbstractAccountWorkload {
     protected void afterExecution(Exporter exporter) {
         ConsoleOutput.header("Consistency Check");
 
-        ConsoleOutput.printRight("Balance update accepted:", "%d".formatted(accept.get()));
-        ConsoleOutput.printRight("Balance update rejected:", "%d".formatted(reject.get()));
+        ConsoleOutput.printRight("Balance updates accepted:", "%d".formatted(accept.get()));
+        ConsoleOutput.printRight("Balance updates rejected:", "%d".formatted(reject.get()));
 
         AtomicInteger negativeAccounts = new AtomicInteger();
-
         AtomicReference<BigDecimal> total = new AtomicReference<>(BigDecimal.ZERO);
 
         accountRepository.findNegativeBalances(pair -> {
@@ -103,7 +111,10 @@ public class WriteSkewWorkload extends AbstractAccountWorkload {
             ConsoleOutput.error("You just lost %s and may want to reconsider your isolation level!! (or use locking) %s"
                     .formatted(total.get(), AsciiArt.flipTableRoughly()));
         } else {
-            ConsoleOutput.info("You are good! %s (try weaker isolation and account reduction using --isolation and --selection)".formatted(AsciiArt.shrug()));
+            ConsoleOutput.info("You are good! %s"
+                    .formatted(AsciiArt.happy()));
+            ConsoleOutput.info(
+                    "To observe anomalies, try read-committed without locking and account narrowing (ex: --isolation rc --selection 20)");
         }
 
         exporter.write(List.of("discrepancies", (long) negativeAccounts.get(), "counter"));

@@ -70,7 +70,6 @@ public class DataSourceConfig {
 
         if (ds.getJdbcUrl().startsWith("jdbc:cockroachdb")) {
             ds.setDriverClassName("io.cockroachdb.jdbc.CockroachDriver");
-
             ds.addDataSourceProperty("implicitSelectForUpdate", "true");
             ds.addDataSourceProperty("retryTransientErrors", "true");
             ds.addDataSourceProperty("retryConnectionErrors", "true");

@@ -1,8 +1,6 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:26257/chaos?sslmode=disable
-    username: root
-    password:
+    driver-class-name: org.postgresql.Driver
 chaos:
   dialect: crdb
   init-file: "/db/create-crdb.sql"

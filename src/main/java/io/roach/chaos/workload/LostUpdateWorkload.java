@@ -4,11 +4,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.stream.IntStream;
 
 import org.springframework.transaction.support.TransactionCallback;
 
@@ -19,7 +17,7 @@ import io.roach.chaos.util.Exporter;
 import io.roach.chaos.util.TransactionWrapper;
 import io.roach.chaos.util.Tuple;
 
-import static io.roach.chaos.util.RandomData.selectRandom;
+import static io.roach.chaos.util.RandomData.selectRandomUnique;
 
 @Note("P4 lost update anomaly")
 public class LostUpdateWorkload extends AbstractAccountWorkload {
@@ -28,27 +26,30 @@ public class LostUpdateWorkload extends AbstractAccountWorkload {
     private BigDecimal initialBalance;
 
     @Override
+    protected void preValidate() {
+        if (settings.getSelection() <= settings.getContentionLevel()) {
+            throw new IllegalStateException("Account selection must be > than contention level");
+        }
+    }
+
+    @Override
     public List<Duration> doExecute() {
+        final Collection<Account> accounts = selectRandomUnique(accountSelection, settings.getContentionLevel());
+
+        final BigDecimal amount = BigDecimal.valueOf(ThreadLocalRandom.current().nextDouble(1, 10))
+                .setScale(2, RoundingMode.HALF_UP);
+
         final List<Tuple<Account, BigDecimal>> legs = new ArrayList<>();
-        final Set<Account.Id> consumedIds = new HashSet<>();
-        final ThreadLocalRandom random = ThreadLocalRandom.current();
 
-        IntStream.rangeClosed(1, Integer.MAX_VALUE)
-                .takeWhile(v -> legs.size() != settings.getContentionLevel())
-                .forEach(leg -> {
-                    Account from = selectRandom(accountSelection);
-                    Account to = selectRandom(accountSelection);
+        for (Account account : accounts) {
+            if (legs.size() % 2 == 0) {
+                legs.add(Tuple.of(account, amount));
+            } else {
+                legs.add(Tuple.of(account, amount.negate()));
+            }
+        }
 
-                    if (consumedIds.add(from.getId()) && consumedIds.add(to.getId())) {
-                        BigDecimal amount = BigDecimal.valueOf(random.nextDouble(1, 10))
-                                .setScale(2, RoundingMode.HALF_UP);
-
-                        legs.add(Tuple.of(from, amount.negate()));
-                        legs.add(Tuple.of(to, amount));
-                    }
-                });
-
-        List<Duration> durations = new ArrayList<>();
+        final List<Duration> durations = new ArrayList<>();
 
         TransactionCallback<Void> callback = status -> {
             BigDecimal checksum = BigDecimal.ZERO;
@@ -101,7 +102,8 @@ public class LostUpdateWorkload extends AbstractAccountWorkload {
             ConsoleOutput.error("You just lost %s and may want to reconsider your isolation level!! (or use locking)"
                     .formatted(initialBalance.subtract(finalBalance)));
         } else {
-            ConsoleOutput.info("You are good! %s (try weaker isolation using --isolation)".formatted(AsciiArt.shrug()));
+            ConsoleOutput.info("You are good! %s".formatted(AsciiArt.happy()));
+            ConsoleOutput.info("To observe anomalies, try read-committed without locking (ex: --isolation rc)");
         }
 
         exporter.write(List.of("discrepancies", initialBalance.equals(finalBalance) ? 0 : 1, "counter"));

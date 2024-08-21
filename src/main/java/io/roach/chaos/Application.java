@@ -24,7 +24,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.data.jdbc.JdbcRepositoriesAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 
 import io.roach.chaos.model.Settings;
 import io.roach.chaos.util.AsciiArt;
@@ -38,7 +41,9 @@ import static io.roach.chaos.util.ConsoleOutput.printRight;
 import static io.roach.chaos.util.ConsoleOutput.error;
 import static io.roach.chaos.util.ConsoleOutput.info;
 
-@SpringBootApplication
+@SpringBootApplication(exclude = {
+        JdbcRepositoriesAutoConfiguration.class
+})
 public class Application implements ApplicationRunner {
     private static final Logger logger = LoggerFactory.getLogger(Application.class);
 
@@ -143,18 +148,24 @@ public class Application implements ApplicationRunner {
         printRight("Database Isolation:", "%s".formatted(isolationLevel));
 
         ConsoleOutput.header("Workload");
-        printRight("Workload type:", "%s".formatted(settings.getWorkloadType()));
-        printRight("Isolation level:", "%s".formatted(settings.getIsolationLevel()));
-        printRight("Workers:", "%d".formatted(settings.getWorkers()));
-        printRight("Accounts:", "%d".formatted(settings.getNumAccounts()));
-        printRight("Account selection:", "%d (%.1f%%)"
+        printRight("Workload Type:", "%s".formatted(settings.getWorkloadType()));
+        printRight("Account Total:", "%d".formatted(settings.getNumAccounts()));
+        printRight("Account Selection:", "%d (%.1f%%)"
                 .formatted(settings.getSelection(),
                         (double) settings.getSelection() / (double) settings.getNumAccounts() * 100.0));
-        printRight("Contention level:", "%s".formatted(settings.getContentionLevel()));
+        printRight("Contention Level (P4 only):", "%s".formatted(settings.getContentionLevel()));
+
+        ConsoleOutput.header("Concurrency");
+        printRight("Worker Threads:", "%d".formatted(settings.getWorkers()));
+        printRight("Retry Jitter:", "%s".formatted(settings.isRetryJitter()));
+        printRight("Skip Retries:", "%s".formatted(settings.isSkipRetry()));
+        printRight("Skip DDL preset:", "%s".formatted(settings.isSkipCreate()));
+        printRight("Skip DML preset:", "%s".formatted(settings.isSkipInit()));
 
         ConsoleOutput.header("Safety");
-        printRight("Lock type:", "%s".formatted(settings.getLockType()));
-        printRight("Isolation level:", "%s".formatted(isolationLevel));
+        printRight("Lock Type:", "%s".formatted(settings.getLockType()));
+        printRight("Isolation Level:", "%s".formatted(settings.getIsolationLevel()));
+        printRight("Isolation Level Reported:", "%s".formatted(isolationLevel));
 
         info("");
 

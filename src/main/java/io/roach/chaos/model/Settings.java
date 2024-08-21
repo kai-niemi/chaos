@@ -12,7 +12,7 @@ public class Settings {
 
     private Dialect dialect;
 
-    private boolean retryJitter = true;
+    private boolean retryJitter;
 
     private boolean export;
 
@@ -26,7 +26,7 @@ public class Settings {
 
     private boolean skipRetry;
 
-    private int contentionLevel = 8;
+    private int contentionLevel = 2;
 
     private int numAccounts = 50_000;
 

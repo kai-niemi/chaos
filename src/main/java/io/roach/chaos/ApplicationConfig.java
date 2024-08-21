@@ -5,8 +5,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.Ordered;
-import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import io.roach.chaos.model.Dialect;
 import io.roach.chaos.model.Settings;
@@ -22,7 +20,6 @@ import io.roach.chaos.workload.WriteSkewWorkload;
 
 @Configuration
 @ConfigurationPropertiesScan(basePackageClasses = Application.class)
-@EnableTransactionManagement(order = Ordered.LOWEST_PRECEDENCE - 1) // Bump up one level to enable extra advisors
 public class ApplicationConfig {
     @Autowired
     public Settings settings;

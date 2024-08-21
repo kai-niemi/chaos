@@ -1,6 +1,7 @@
 package io.roach.chaos.model;
 
 import java.math.BigDecimal;
+import java.util.Objects;
 
 public class Account {
     private Id id;
@@ -39,6 +40,23 @@ public class Account {
     public Account addBalance(BigDecimal delta) {
         this.balance = balance.add(delta);
         return this;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        Account account = (Account) o;
+        return Objects.equals(id, account.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(id);
     }
 
     @Override

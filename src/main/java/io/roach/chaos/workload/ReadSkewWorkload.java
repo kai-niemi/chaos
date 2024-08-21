@@ -101,7 +101,6 @@ public class ReadSkewWorkload extends AbstractAccountWorkload {
         ConsoleOutput.header("Consistency Check");
 
         AtomicInteger negativeAccounts = new AtomicInteger();
-
         AtomicReference<BigDecimal> total = new AtomicReference<>(BigDecimal.ZERO);
 
         accountRepository.findNegativeBalances(pair -> {
@@ -111,18 +110,17 @@ public class ReadSkewWorkload extends AbstractAccountWorkload {
             total.set(total.get().add(pair.getSecond()));
         });
 
-        discrepancies
-                .stream()
-                .limit(10)
-                .forEach(tuple -> ConsoleOutput.error(
-                        "Observed inconsistent sum for account tuple id: %s (%,.2f) expected %,.2f"
-                                .formatted(tuple.getA(), tuple.getB(), tupleSum)));
-
         if (discrepancies.isEmpty()) {
-            ConsoleOutput.info("No account balance discrepancies %s (try weaker isolation and account reduction using --isolation and --selection)"
+            ConsoleOutput.info("No account balance discrepancies %s"
                     .formatted(AsciiArt.happy()));
         } else {
-            ConsoleOutput.error("Total account balance discrepancies (listing top 10): %d %s"
+            discrepancies
+                    .stream()
+                    .limit(10)
+                    .forEach(tuple -> ConsoleOutput.error(
+                            "Observed inconsistent sum for account tuple id: %s (%,.2f) - expected %,.2f"
+                                    .formatted(tuple.getA(), tuple.getB(), tupleSum)));
+            ConsoleOutput.error("Total of %d account balance discrepancies (listing top 10): %s"
                     .formatted(discrepancies.size(), AsciiArt.flipTableRoughly()));
         }
 
@@ -132,7 +130,13 @@ public class ReadSkewWorkload extends AbstractAccountWorkload {
             ConsoleOutput.error("You just lost %s and may want to reconsider your isolation level!! (or use locking)"
                     .formatted(total.get()));
         } else {
-            ConsoleOutput.info("No negative balances %s".formatted(AsciiArt.shrug()));
+            ConsoleOutput.info("No negative balances %s"
+                    .formatted(AsciiArt.happy()));
+
+            if (discrepancies.isEmpty()) {
+                ConsoleOutput.info(
+                        "To observe anomalies, try read-committed without locking and account narrowing (ex: --isolation rc --selection 20)");
+            }
         }
 
         exporter.write(List.of("discrepancies", (long) discrepancies.size(), "counter"));

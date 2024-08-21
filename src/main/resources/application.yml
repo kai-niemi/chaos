@@ -9,8 +9,6 @@ spring:
     ansi:
       enabled: ALWAYS
   datasource:
-    url: jdbc:postgresql://localhost:26257/chaos?sslmode=disable
-    username: root
     hikari:
       connection-test-query: SELECT 1
       connection-timeout: 15000

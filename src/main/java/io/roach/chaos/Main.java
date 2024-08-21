@@ -17,6 +17,7 @@ import io.roach.chaos.model.IsolationLevel;
 import io.roach.chaos.model.LockType;
 import io.roach.chaos.model.WorkloadType;
 import io.roach.chaos.util.AnsiColor;
+import io.roach.chaos.util.AsciiArt;
 import io.roach.chaos.util.ConsoleOutput;
 import io.roach.chaos.util.Multiplier;
 
@@ -37,7 +38,10 @@ public class Main {
     private static void parseArgs(String[] args, Map<String, Object> properties) {
         LinkedList<String> argsList = new LinkedList<>(List.of(args));
 
-        Set<String> optionalProfiles = new LinkedHashSet<>();
+        Set<String> springProfiles = new LinkedHashSet<>();
+        String url = "";
+        String user = "";
+        String password = "";
 
         WorkloadType workloadType = null;
 
@@ -46,9 +50,7 @@ public class Main {
             if (arg.startsWith("--")) {
                 if (arg.equals("--verbose")) {
                     properties.put("chaos.debugProxy", true);
-
-                    optionalProfiles.add("verbose");
-                    optionalProfiles.add("crdb");
+                    springProfiles.add("verbose");
                 } else if (arg.equals("--jitter")) {
                     properties.put("chaos.retryJitter", true);
                 } else if (arg.equals("--quit")) {
@@ -98,8 +100,8 @@ public class Main {
                         printUsageAndQuit("Expected value for " + arg);
                     }
                     int v = Integer.parseInt(argsList.pop());
-                    if (v % 2 != 0) {
-                        printUsageAndQuit("Contention level must be a multiple of 2");
+                    if (v % 2 != 0 || v < 2) {
+                        printUsageAndQuit("Contention level must be a multiple of 2 and >= 2");
                     }
                     properties.put("chaos.contentionLevel", v);
                 } else if (arg.equals("--threads")) {
@@ -142,25 +144,22 @@ public class Main {
                     if (argsList.isEmpty()) {
                         printUsageAndQuit("Expected value for " + arg);
                     }
-                    properties.put("spring.datasource.url", argsList.pop());
-                } else if (arg.equals("--dev")) {
-                    properties.put("spring.datasource.url",
-                            "jdbc:postgresql://192.168.1.99:26257/chaos?sslmode=disable");
+                    url = argsList.pop();
                 } else if (arg.equals("--user")) {
                     if (argsList.isEmpty()) {
                         printUsageAndQuit("Expected value for " + arg);
                     }
-                    properties.put("spring.datasource.username", argsList.pop());
+                    user = argsList.pop();
                 } else if (arg.equals("--password")) {
                     if (argsList.isEmpty()) {
                         printUsageAndQuit("Expected value for " + arg);
                     }
-                    properties.put("spring.datasource.password", argsList.pop());
+                    password = argsList.pop();
                 } else if (arg.equals("--profile")) {
                     if (argsList.isEmpty()) {
                         printUsageAndQuit("Expected value for " + arg);
                     }
-                    optionalProfiles.add(argsList.pop());
+                    springProfiles.add(argsList.pop());
                 } else if (arg.equals("--help")) {
                     printUsageAndQuit("");
                 } else {
@@ -180,12 +179,37 @@ public class Main {
             }
         }
 
-        if (optionalProfiles.isEmpty()) {
-            optionalProfiles.add("crdb");
+        if (!springProfiles.contains("crdb")
+                && !springProfiles.contains("psql")
+                && !springProfiles.contains("mysql")
+                && !springProfiles.contains("oracle")) {
+            springProfiles.add("crdb");
         }
 
-        properties.put("spring.profiles.active", StringUtils.collectionToCommaDelimitedString(optionalProfiles));
-        System.setProperty("spring.profiles.active", StringUtils.collectionToCommaDelimitedString(optionalProfiles));
+        if (springProfiles.contains("crdb")) {
+            url = url.equals("") ? "jdbc:postgresql://localhost:26257/chaos?sslmode=disable" : url;
+            user = user.equals("") ? "root" : user;
+            password = password.equals("") ? "root" : password;
+        } else if (springProfiles.contains("psql")) {
+            url = url.equals("") ? "jdbc:postgresql://localhost:5432/chaos?sslmode=disable" : url;
+            user = user.equals("") ? "root" : user;
+            password = password.equals("") ? "root" : password;
+        } else if (springProfiles.contains("mysql")) {
+            url = url.equals("") ? "jdbc:mysql://localhost:3306/chaos" : url;
+            user = user.equals("") ? "root" : user;
+            password = password.equals("") ? "" : password;
+        } else if (springProfiles.contains("oracle")) {
+            url = url.equals("") ? "jdbc:oracle:thin:@//localhost:1521/freepdb1" : url;
+            user = user.equals("") ? "system" : user;
+            password = password.equals("") ? "root" : password;
+        }
+
+        properties.put("spring.datasource.url", url);
+        properties.put("spring.datasource.username", user);
+        properties.put("spring.datasource.password", password);
+        properties.put("spring.profiles.active", StringUtils.collectionToCommaDelimitedString(springProfiles));
+
+        System.setProperty("spring.profiles.active", StringUtils.collectionToCommaDelimitedString(springProfiles));
 
         if (workloadType == null) {
             printUsageAndQuit("Missing workload type");
@@ -240,8 +264,7 @@ public class Main {
         ConsoleOutput.printLeft("--threads <num>", "max number of threads", "(host vCPUs x 2 = " + workers + ")");
         ConsoleOutput.printLeft("--iterations <num>", "number of cycles to run", "(1K)");
         ConsoleOutput.printLeft("--accounts <num>", "number of accounts to create and randomize between", "(50K)");
-        ConsoleOutput.printLeft("--contention <num>", "contention level in lost update workload",
-                "(8, must be a multiple of 2)");
+        ConsoleOutput.printLeft("--contention <num>", "contention level for the P4 lost update workload only", "(2)");
         ConsoleOutput.printLeft("--selection <num>", "random selection of accounts to pick between", "(500)");
         ConsoleOutput.info("  Hint: decrease selection to observe anomalies in read-committed.");
         ConsoleOutput.printLeft("--jitter", "enable exponential backoff jitter", "(false)");
@@ -255,6 +278,7 @@ public class Main {
 
         ConsoleOutput.info("");
         ConsoleOutput.error(note);
+        ConsoleOutput.error(AsciiArt.shrug());
 
         System.exit(1);
     }

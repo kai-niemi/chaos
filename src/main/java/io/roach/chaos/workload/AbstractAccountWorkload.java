@@ -55,6 +55,8 @@ public abstract class AbstractAccountWorkload implements Workload {
 
     @Override
     public final void doBeforeExecution() {
+        preValidate();
+
         if (!settings.isSkipCreate()) {
             ResourceDatabasePopulator populator = new ResourceDatabasePopulator();
             populator.addScript(new ClassPathResource(settings.getInitFile()));
@@ -74,6 +76,9 @@ public abstract class AbstractAccountWorkload implements Workload {
         }
 
         beforeExecution();
+    }
+
+    protected void preValidate() {
     }
 
     protected void beforeExecution() {

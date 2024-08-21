@@ -1,6 +1,8 @@
 package io.roach.chaos.repository;
 
 import java.math.BigDecimal;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -55,6 +57,15 @@ public abstract class AbstractAccountRepository implements AccountRepository {
                 }, (rs, rowNum) -> toAccount(rs));
     }
 
+    protected Account toAccount(ResultSet res) throws SQLException {
+        return new Account()
+                .setId(new Account.Id(
+                        res.getLong("id"),
+                        res.getString("type")))
+                .setBalance(res.getBigDecimal("balance"))
+                .setVersion(res.getInt("version"));
+    }
+
     @Override
     public void updateBalance(Account account) {
         int rowsUpdated = jdbcTemplate.update(
@@ -82,7 +93,7 @@ public abstract class AbstractAccountRepository implements AccountRepository {
                 });
 
         if (rowsUpdated != 1) {
-            throw new IllegalStateException("Rows affected not 1 but " + rowsUpdated + " for " + account);
+            throw new OptimisticLockingFailureException("Rows affected not 1 but " + rowsUpdated + " for " + account);
         }
     }
 
