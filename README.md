@@ -14,10 +14,25 @@ Specifically by observing application impact around:
   - Weaker vs stronger isolation
   - Pessimistic locking using `FOR UPDATE` or `FOR SHARE`
   - Optimistic locking using compare-and-set (CAS)
-- Correct execution while exposed to:
-  - P4 lost update
+- Correctness when exposed to the following anomalies:
+  - P4 lost update 
+  - P2 non-repeatable / fuzzy read 
+  - P3 phantom read 
+  - A5A read skew 
   - A5B write skew 
-  - A5A read skew
+
+Isolation levels characterised by the phenomena they allow or prevent:
+
+|                  | Default Isolation | P0 D.Write   | P1 D.Read    | P4C C.Lost Update | P4 Lost Update     | P2 Fuzzy Read      | P3 Phantom Read    | A5A Read Skew | A5B Write Skew     |
+|------------------|-------------------|--------------|--------------|-------------------|--------------------|--------------------|--------------------|---------------|--------------------|
+| Read Uncommitted |                   | Not Possible | Possible     | Possible          | Possible           | Possible           | Possible           | Possible      | Possible           |
+| Read Committed   | Oracle,PostgreSQL | Not Possible | Not Possible | Possible          | Possible           | Possible           | Possible           | Possible      | Possible           |
+| Cursor Stability |                   | Not Possible | Not Possible | Not Possible      | Sometimes Possible | Sometimes Possible | Possible           | Possible      | Sometimes Possible |
+| Repeatable Read  | MySQL             | Not Possible | Not Possible | Not Possible      | Not Possible       | Not Possible       | Possible           | Not Possible  | Not Possible       |
+| Snapshot *)      |                   | Not Possible | Not Possible | Not Possible      | Not Possible       | Not Possible       | Sometimes Possible | Not Possible  | Possible           |
+| Serializable     | CockroachDB       | Not Possible | Not Possible | Not Possible      | Not Possible       | Not Possible       | Not Possible       | Not Possible  | Not Possible       |
+
+*) Oracle calls this Serializable and PostgreSQL implements this in Repeatable Read.  
 
 # How it works
 
@@ -42,8 +57,10 @@ like using optimistic or pessmistic locking.
 ## Further Resources
 
 - https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/tr-95-51.pdf
+- https://blog.acolyer.org/2016/02/24/a-critique-of-ansi-sql-isolation-levels/
 - http://www.bailis.org/papers/acidrain-sigmod2017.pdf
 - http://www.bailis.org/blog/when-is-acid-acid-rarely/
+- https://jepsen.io/consistency
 
 # Building and Running
 
@@ -160,13 +177,15 @@ Maven is used to build the project, bootstrapped by Tanuki Maven wrapper.
 
     java -jar target/chaos.jar --help
 
-For more examples, see samples below.
+For more examples, see workload samples below.
 
-# Sample Workloads
+# Workloads
 
-A description of the highly contented workloads named by the anomalies they are subject to.
+A description of the different anomalies manifested (and prevented) in Chaos.
 
 ## Lost Update (P4)
+
+> A lost update happens when one transaction overwrites the changes made by another transaction.
 
 Examples:
     
@@ -211,15 +230,79 @@ number of concurrent executors or by reducing the selection of account IDs invol
 in the interleaving. This allows for creating a high number of accounts spanning 
 many ranges while still being able to cause contention.
 
+## Non-Repeatable Read (P2)
+
+Also called a fuzzy read and described as:
+
+> A non-repeatable read occurs, when during the course of a transaction, a row is retrieved twice and the values within the row differ between reads.
+
+Example:
+
+    begin; -- t1
+    set transaction isolation level read committed; -- t1
+    begin; -- t2
+    set transaction isolation level read committed; -- t2
+    SELECT balance FROM account WHERE id = 1 AND type = 'checking'; -- t1 100
+    SELECT balance FROM account WHERE id = 1 AND type = 'checking'; -- t1 100
+    SELECT balance FROM account WHERE id = 1 AND type = 'checking'; -- t1 100
+    UPDATE account SET balance = 50 WHERE id = 1 and type='checking'; -- t2
+    SELECT balance FROM account WHERE id = 1 AND type = 'checking'; -- t1 100
+    commit; -- t2
+    SELECT balance FROM account WHERE id = 1 AND type = 'checking'; -- t1 50  (P2 anomaly !!)
+    commit; -- t1
+
+This will result in anomalies:
+
+    java -jar target/chaos.jar --profile crdb --isolation rc --selection 10 --accounts 100 --iterations 100 p2
+
+This will result in a correct outcome:
+
+    java -jar target/chaos.jar --profile crdb --isolation 1sr --selection 10 --accounts 100 --iterations 100 p2
+
+## Phantom Read (P3)
+
+> A phantom read occurs when, in the course of a transaction, two identical queries are executed, and the collection of rows returned by the second query is different from the first.
+
+In other words, the predicate is unstable when repeating the read.
+
+Example:
+
+    insert into account (id, type, balance)
+    values (1, 'a', 100.00),
+           (1, 'b', 100.00),
+           (1, 'c', 100.00);
+    begin; -- t1
+    set transaction isolation level read committed; -- t1
+    begin; -- t2
+    set transaction isolation level read committed; -- t2
+    select * from account where id = 1; -- t1 (3 rows)
+    select * from account where id = 1; -- t1 (3 rows)
+    insert into account (id, type, balance) values (1, 'd', 100.00); -- t2
+    commit; -- t2
+    select * from account where id = 1; -- t1 (must be 3 rows and if 4 then its a p3 violation !!)
+    commit; -- t1
+
+This will result in anomalies:
+
+    java -jar target/chaos.jar --profile crdb --isolation rc --selection 10 --accounts 100 --iterations 100 p3
+
+This will result in a correct outcome:
+
+    java -jar target/chaos.jar --profile crdb --isolation 1sr --selection 10 --accounts 100 --iterations 100 p3
+
 ## Write Skew (A5b)
+
+> Write skew is a phenomenon where two writes are allowed to the same column(s) in 
+> a table by two different writers (who have previously read the columns they are updating), 
+> resulting in the column having data that is a mix of the two transactions.
 
 Examples:
 
     java -jar target/chaos.jar --isolation rc --selection 20 write_skew
     java -jar target/chaos.jar --url "jdbc:postgresql://localhost:5432/chaos" --profile psql --isolation rc write_skew 
 
-In this workload, accounts are organized in tuples where the same surrogate id is shared by a 
-checking and credit account. The composite primary key is `id,type`. The business rule (invariant) 
+In this workload, accounts are organized in tuples where the same surrogate id is shared by a
+checking and credit account. The composite primary key is `id,type`. The business rule (invariant)
 is that the account balances can be negative or positive as long as the sum of both accounts is be >= 0.
 
 | id | type     | balance |
@@ -228,7 +311,7 @@ is that the account balances can be negative or positive as long as the sum of b
 | 1  | credit   | 10.00   |
 | Σ  | -        | +5.00   | 
 
-Write skew can happen if `T1` and `T2` reads the total balance (which is >0 ) and 
+Write skew can happen if `T1` and `T2` reads the total balance (which is >0 ) and
 independently writes a new balance to different rows.
 
 Preset:
@@ -249,8 +332,8 @@ Assume transaction `T1` and `T2`:
 | commit; --ok                                                                       |                                                                                     | 
 |                                                                                    | commit; -- ok (not allowed in 1SR)                                                  | 
 
-Both transactions are correct in isolation but when put together the total sum is `-5.00` (rule violation) 
-since they were both allowed to commit. This subtle anomaly is called write skew, which is prevented 
+Both transactions are correct in isolation but when put together the total sum is `-5.00` (rule violation)
+since they were both allowed to commit. This subtle anomaly is called write skew, which is prevented
 in 1SR but allowed in RC.
 
 In summary, this workload concurrently executes the following statements (using pseudo-code):
@@ -266,7 +349,7 @@ In summary, this workload concurrently executes the following statements (using 
     COMMIT;
 
 This workload is therefore unsafe in RC unless using optimistic "locking" through a CAS operation
-(version increments). Notice that pessimistic locks can't be used due to the 
+(version increments). Notice that pessimistic locks can't be used due to the
 aggregate `sum` function.
 
 **Hint:** To have a greater chance to observe anomalies in RC, decrease the `--selection` and/or
@@ -274,13 +357,17 @@ increase `--iterations` with 10x.
 
 ## Read Skew (A5a)
 
+> Read skew is that with two different queries, a transaction reads inconsistent 
+> data because between the 1st and 2nd queries, other transactions insert, 
+> update or delete data and commit.
+
 Examples:
 
     java -jar target/chaos.jar --isolation rc --selection 20 read_skew
     java -jar target/chaos.jar --url "jdbc:postgresql://localhost:5432/chaos" --profile psql --isolation rc read_skew 
 
-This workload is similar to write skew where the account balances are read in separate statements 
-and the sum is expected to remain constant. Under RC without locks, it's allowed to read values 
+This workload is similar to write skew where the account balances are read in separate statements
+and the sum is expected to remain constant. Under RC without locks, it's allowed to read values
 committed by other concurrent transactions and thereby observe deviations. Under 1SR, this is
 prevented and results in a transient rollback error.
 
