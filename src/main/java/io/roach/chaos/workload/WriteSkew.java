@@ -31,7 +31,7 @@ public class WriteSkew extends AbstractWorkload {
     private final AtomicInteger reject = new AtomicInteger();
 
     @Override
-    public List<Duration> doExecute() {
+    public List<Duration> oneExecution() {
         final ThreadLocalRandom random = ThreadLocalRandom.current();
 
         final List<Duration> durations = new ArrayList<>();
@@ -75,21 +75,21 @@ public class WriteSkew extends AbstractWorkload {
     }
 
     @Override
-    protected void preValidate() {
+    public void validateSettings() {
         if (EnumSet.of(LockType.FOR_SHARE, LockType.FOR_UPDATE).contains(settings.getLockType())) {
             ConsoleOutput.warn("This workload can't use pessimistic locks only CAS");
         }
     }
 
     @Override
-    protected void beforeExecution() {
+    protected void doBeforeExecutions() {
         this.accountSelection.addAll(accountRepository.findTargetAccounts(settings.getSelection(), settings.isRandomSelection()));
         this.accept.set(0);
         this.reject.set(0);
     }
 
     @Override
-    protected void afterExecution(Exporter exporter) {
+    public void afterAllExecutions() {
         ConsoleOutput.header("Consistency Check");
 
         ConsoleOutput.printRight("Balance updates accepted:", "%d".formatted(accept.get()));
@@ -116,7 +116,5 @@ public class WriteSkew extends AbstractWorkload {
             ConsoleOutput.info(
                     "To observe anomalies, try read-committed without locking and account narrowing (ex: --isolation rc --selection 20)");
         }
-
-        exporter.write(List.of("discrepancies", (long) negativeAccounts.get(), "counter"));
     }
 }

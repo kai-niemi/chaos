@@ -19,7 +19,13 @@ public interface AccountRepository {
                         int count,
                         Consumer<Integer> progress);
 
-    Account findById(Account.Id id, LockType lock);
+    void createAccount(Account account);
+
+    void deleteAccount(Account.Id id);
+
+    Account findAccountById(Account.Id id, LockType lock);
+
+    List<Account> findAccountsById(Long id, LockType lock);
 
     List<Account> findTargetAccounts(int limit, boolean random);
 

@@ -31,7 +31,7 @@ public class OracleAccountRepository extends MySQLAccountRepository {
     }
 
     @Override
-    public Account findById(Account.Id id, LockType lock) {
+    public Account findAccountById(Account.Id id, LockType lock) {
         if (lock == LockType.FOR_SHARE) {
             jdbcTemplate.execute("LOCK TABLE account IN SHARE MODE");
         }
@@ -40,7 +40,20 @@ public class OracleAccountRepository extends MySQLAccountRepository {
                         + (lock == LockType.FOR_UPDATE ? " FOR UPDATE" : ""),
                 (rs, rowNum) -> toAccount(rs),
                 id.getId(),
-                id.getType().name());
+                id.getType());
+    }
+
+    @Override
+    public List<Account> findAccountsById(Long id, LockType lock) {
+        if (lock == LockType.FOR_SHARE) {
+            jdbcTemplate.execute("LOCK TABLE account IN SHARE MODE");
+        }
+        return jdbcTemplate.query(
+                "SELECT * FROM account WHERE id=?"
+                        + (lock == LockType.FOR_UPDATE ? " FOR UPDATE" : ""),
+                ps -> {
+                    ps.setLong(1, id);
+                }, (rs, rowNum) -> toAccount(rs));
     }
 
 }

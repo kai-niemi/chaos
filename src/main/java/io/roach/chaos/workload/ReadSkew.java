@@ -18,7 +18,6 @@ import io.roach.chaos.model.Account;
 import io.roach.chaos.model.AccountType;
 import io.roach.chaos.util.AsciiArt;
 import io.roach.chaos.util.ConsoleOutput;
-import io.roach.chaos.util.Exporter;
 import io.roach.chaos.util.TransactionWrapper;
 import io.roach.chaos.util.Tuple;
 
@@ -35,7 +34,7 @@ public class ReadSkew extends AbstractWorkload {
     private final BigDecimal tupleSum = new BigDecimal("1000.00");
 
     @Override
-    public List<Duration> doExecute() {
+    public List<Duration> oneExecution() {
         final ThreadLocalRandom random = ThreadLocalRandom.current();
 
         final List<Duration> durations = new ArrayList<>();
@@ -44,8 +43,8 @@ public class ReadSkew extends AbstractWorkload {
             // Drain queue and read each account in tuple separately (rather than using aggregation)
             Tuple<Account.Id, Account.Id> tuple = queue.poll();
             while (tuple != null) {
-                Account a = accountRepository.findById(tuple.getA(), settings.getLockType());
-                Account b = accountRepository.findById(tuple.getB(), settings.getLockType());
+                Account a = accountRepository.findAccountById(tuple.getA(), settings.getLockType());
+                Account b = accountRepository.findAccountById(tuple.getB(), settings.getLockType());
 
                 BigDecimal snapshot = a.getBalance().add(b.getBalance());
 
@@ -91,13 +90,14 @@ public class ReadSkew extends AbstractWorkload {
     }
 
     @Override
-    protected void beforeExecution() {
-        this.accountSelection.addAll(accountRepository.findTargetAccounts(settings.getSelection(), settings.isRandomSelection()));
+    protected void doBeforeExecutions() {
+        this.accountSelection.addAll(
+                accountRepository.findTargetAccounts(settings.getSelection(), settings.isRandomSelection()));
         this.discrepancies.clear();
     }
 
     @Override
-    protected void afterExecution(Exporter exporter) {
+    public void afterAllExecutions() {
         ConsoleOutput.header("Consistency Check");
 
         AtomicInteger negativeAccounts = new AtomicInteger();
@@ -138,8 +138,5 @@ public class ReadSkew extends AbstractWorkload {
                         "To observe anomalies, try read-committed without locking and account narrowing (ex: --isolation rc --selection 20)");
             }
         }
-
-        exporter.write(List.of("discrepancies", (long) discrepancies.size(), "counter"));
-        exporter.write(List.of("negativeAccounts", (long) negativeAccounts.get(), "counter"));
     }
 }

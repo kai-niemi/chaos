@@ -15,7 +15,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 import io.roach.chaos.Settings;
 import io.roach.chaos.repository.AccountRepository;
 import io.roach.chaos.util.AsciiArt;
-import io.roach.chaos.util.Exporter;
 import io.roach.chaos.util.RetryableTransactionWrapper;
 import io.roach.chaos.util.TransactionWrapper;
 
@@ -54,9 +53,7 @@ public abstract class AbstractWorkload implements Workload {
     }
 
     @Override
-    public final void doBeforeExecution() {
-        preValidate();
-
+    public final void beforeAllExecutions() {
         if (!settings.isSkipCreate()) {
             ResourceDatabasePopulator populator = new ResourceDatabasePopulator();
             populator.addScript(new ClassPathResource(settings.getInitFile()));
@@ -75,20 +72,9 @@ public abstract class AbstractWorkload implements Workload {
                             "Creating %,d accounts".formatted(settings.getNumAccounts())));
         }
 
-        beforeExecution();
+        doBeforeExecutions();
     }
 
-    protected void preValidate() {
-    }
-
-    protected void beforeExecution() {
-    }
-
-    @Override
-    public final void doAfterExecution(Exporter exporter) {
-        afterExecution(exporter);
-    }
-
-    protected void afterExecution(Exporter exporter) {
+    protected void doBeforeExecutions() {
     }
 }

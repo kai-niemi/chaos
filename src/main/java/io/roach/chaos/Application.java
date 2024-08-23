@@ -34,9 +34,9 @@ import io.roach.chaos.util.DatabaseInfo;
 import io.roach.chaos.util.Exporter;
 import io.roach.chaos.workload.Workload;
 
-import static io.roach.chaos.util.ConsoleOutput.printRight;
 import static io.roach.chaos.util.ConsoleOutput.error;
 import static io.roach.chaos.util.ConsoleOutput.info;
+import static io.roach.chaos.util.ConsoleOutput.printRight;
 
 @SpringBootApplication(exclude = {
         JdbcRepositoriesAutoConfiguration.class
@@ -74,11 +74,17 @@ public class Application implements ApplicationRunner {
 
         if (settings.getWorkers() <= 0) {
             settings.setWorkers(Runtime.getRuntime().availableProcessors() * 2);
-            logger.warn("Setting workers to %d"
-                    .formatted(settings.getWorkers()));
+            logger.warn("Setting workers to %d".formatted(settings.getWorkers()));
         }
 
-        beforeExecution(args);
+        workload.validateSettings();
+
+        printSettings(args);
+
+        if (settings.isQuit()) {
+            info("Quitting..");
+            System.exit(0);
+        }
 
         final ExecutorService executorService = Executors.newFixedThreadPool(settings.getWorkers());
         final Instant startTime = Instant.now();
@@ -88,14 +94,13 @@ public class Application implements ApplicationRunner {
         int fails = 0;
 
         try {
-            final Deque<Future<List<Duration>>> futures = new ArrayDeque<>();
+            workload.beforeAllExecutions();
 
-            info("Queuing max %d workers for %d iterations - let it rip!"
-                    .formatted(settings.getWorkers(), settings.getIterations()));
+            final Deque<Future<List<Duration>>> futures = new ArrayDeque<>();
 
             // Queue workers
             IntStream.rangeClosed(1, settings.getIterations())
-                    .forEach(value -> futures.add(executorService.submit(workload::doExecute)));
+                    .forEach(value -> futures.add(executorService.submit(workload::oneExecution)));
 
             // Await completion
             while (!futures.isEmpty()) {
@@ -121,66 +126,65 @@ public class Application implements ApplicationRunner {
                 }
             }
         } finally {
-            final Instant stopTime = Instant.now();
+            printResults(Duration.between(startTime, Instant.now()), commits, fails, totalRetries.get(), allDurations);
+            workload.afterAllExecutions();
             executorService.shutdownNow();
-
-            afterExecution(args, Duration.between(startTime, stopTime), commits, fails, totalRetries.get(),
-                    allDurations);
         }
     }
 
-    private void beforeExecution(ApplicationArguments args) {
+    private void printSettings(ApplicationArguments args) {
         final String version = workload.databaseVersion();
         final String isolationLevel = workload.isolationLevel();
         final String driver = DatabaseInfo.driverVersion(dataSource);
 
         printRight("Args:", "%s".formatted(Arrays.stream(args.getSourceArgs()).toList()));
+
         ConsoleOutput.header("Database");
-
-        DatabaseInfo.inspectDatabaseMetadata(dataSource,
-                (k, v) -> printRight(k + ":", "%s".formatted(v)));
-
-        printRight("Database Version:", "%s".formatted(version));
-        printRight("Driver Version:", "%s".formatted(driver));
-        printRight("Database Isolation:", "%s".formatted(isolationLevel));
-
-        ConsoleOutput.header("Workload Commons");
-        printRight("Workload Type:", "%s".formatted(settings.getWorkloadType()));
-        printRight("Account Total:", "%d".formatted(settings.getNumAccounts()));
-        printRight("Account Selection:", "%d (%.1f%%)"
-                .formatted(settings.getSelection(),
-                        (double) settings.getSelection() / (double) settings.getNumAccounts() * 100.0));
-        printRight("Sequential Selection:", "%s".formatted(!settings.isRandomSelection()));
-
-        ConsoleOutput.header("Workload Specifics");
-        printRight("R/W Ratio (P2 only):", "%s".formatted(settings.getReadWriteRatio()));
-        printRight("Contention Level (P4 only):", "%s".formatted(settings.getContentionLevel()));
-
-        ConsoleOutput.header("Concurrency");
-        printRight("Worker Threads:", "%d".formatted(settings.getWorkers()));
-        printRight("Retry Jitter:", "%s".formatted(settings.isRetryJitter()));
-        printRight("Skip Retries:", "%s".formatted(settings.isSkipRetry()));
-        printRight("Skip DDL preset:", "%s".formatted(settings.isSkipCreate()));
-        printRight("Skip DML preset:", "%s".formatted(settings.isSkipInit()));
-
-        ConsoleOutput.header("Safety");
-        printRight("Lock Type:", "%s".formatted(settings.getLockType()));
-        printRight("Isolation Level:", "%s".formatted(settings.getIsolationLevel()));
-        printRight("Isolation Level Reported:", "%s".formatted(isolationLevel));
-
-        info("");
-
-        if (settings.isQuit()) {
-            info("Quitting..");
-            System.exit(0);
+        {
+            DatabaseInfo.inspectDatabaseMetadata(dataSource,
+                    (k, v) -> printRight(k + ":", "%s".formatted(v)));
+            printRight("Database Version:", "%s".formatted(version));
+            printRight("Driver Version:", "%s".formatted(driver));
+            printRight("Database Isolation:", "%s".formatted(isolationLevel));
         }
 
-        workload.doBeforeExecution();
+        ConsoleOutput.header("Workload Commons");
+        {
+            printRight("Workload Type:", "%s".formatted(settings.getWorkloadType()));
+            printRight("Account Total:", "%d".formatted(settings.getNumAccounts()));
+            printRight("Account Selection:", "%d (%.1f%%)"
+                    .formatted(settings.getSelection(),
+                            (double) settings.getSelection() / (double) settings.getNumAccounts() * 100.0));
+            printRight("Sequential Selection:", "%s".formatted(!settings.isRandomSelection()));
+        }
+
+        ConsoleOutput.header("Workload Specifics");
+        {
+            printRight("R/W Ratio (P2 only):", "%s".formatted(settings.getReadWriteRatio()));
+            printRight("Contention Level (P4 only):", "%s".formatted(settings.getContentionLevel()));
+        }
+
+        ConsoleOutput.header("Concurrency");
+        {
+            printRight("Worker Threads:", "%d".formatted(settings.getWorkers()));
+            printRight("Iterations:", "%d".formatted(settings.getIterations()));
+            printRight("Retry Jitter:", "%s".formatted(settings.isRetryJitter()));
+            printRight("Skip Retries:", "%s".formatted(settings.isSkipRetry()));
+            printRight("Skip DDL preset:", "%s".formatted(settings.isSkipCreate()));
+            printRight("Skip DML preset:", "%s".formatted(settings.isSkipInit()));
+        }
+
+        ConsoleOutput.header("Safety");
+        {
+            printRight("Lock Type:", "%s".formatted(settings.getLockType()));
+            printRight("Isolation Level:", "%s".formatted(settings.getIsolationLevel()));
+            printRight("Isolation Level Reported:", "%s".formatted(isolationLevel));
+        }
     }
 
-    private void afterExecution(ApplicationArguments args, Duration duration,
-                                int commits, int fails, int totalRetries,
-                                List<Duration> allDurations) {
+    private void printResults(Duration duration,
+                              int commits, int fails, int totalRetries,
+                              List<Duration> allDurations) {
 
         final DoubleSummaryStatistics summaryStatistics = allDurations
                 .stream()
@@ -194,28 +198,29 @@ public class Application implements ApplicationRunner {
                 .boxed()
                 .toList();
 
-        info("");
-
         ConsoleOutput.header("Transactions");
-        printRight("Execution time:", "%s".formatted(duration));
-        printRight("Total commits:", "%,d".formatted(commits));
-        printRight("Total fails:", "%,d".formatted(fails));
-        printRight("Total retries:", "%,d".formatted(totalRetries));
+        {
+            printRight("Execution time:", "%s".formatted(duration));
+            printRight("Total commits:", "%,d".formatted(commits));
+            printRight("Total fails:", "%,d".formatted(fails));
+            printRight("Total retries:", "%,d".formatted(totalRetries));
+        }
 
         ConsoleOutput.header("Timings");
-        printRight("Avg time in txn:", "%.1f ms".formatted(summaryStatistics.getAverage()));
-        printRight("Cumulative time in txn:", "%.0f ms".formatted(summaryStatistics.getSum()));
-        printRight("Min time in txn:", "%.1f ms".formatted(summaryStatistics.getMin()));
-        printRight("Max time in txn:", "%.1f ms".formatted(summaryStatistics.getMax()));
-        printRight("Total samples:", "%d".formatted(summaryStatistics.getCount()));
-        printRight("P50 latency:", "%.1f ms".formatted(percentile(allDurationMillis, .50)));
-        printRight("P95 latency:", "%.1f ms".formatted(percentile(allDurationMillis, .95)));
-        printRight("P99 latency:", "%.1f ms".formatted(percentile(allDurationMillis, .99)));
-        printRight("P999 latency:", "%.1f ms".formatted(percentile(allDurationMillis, .999)));
+        {
+            printRight("Avg time in txn:", "%.1f ms".formatted(summaryStatistics.getAverage()));
+            printRight("Cumulative time in txn:", "%.0f ms".formatted(summaryStatistics.getSum()));
+            printRight("Min time in txn:", "%.1f ms".formatted(summaryStatistics.getMin()));
+            printRight("Max time in txn:", "%.1f ms".formatted(summaryStatistics.getMax()));
+            printRight("Total samples:", "%d".formatted(summaryStatistics.getCount()));
+            printRight("P50 latency:", "%.1f ms".formatted(percentile(allDurationMillis, .50)));
+            printRight("P95 latency:", "%.1f ms".formatted(percentile(allDurationMillis, .95)));
+            printRight("P99 latency:", "%.1f ms".formatted(percentile(allDurationMillis, .99)));
+            printRight("P999 latency:", "%.1f ms".formatted(percentile(allDurationMillis, .999)));
+        }
 
         if (fails > 0) {
-            error(
-                    "There are %d non-transient errors that may invalidate the final outcome!".formatted(fails));
+            error("There were %d non-transient errors that may invalidate the final outcome!".formatted(fails));
         }
 
         if (settings.isExport()) {
@@ -238,14 +243,9 @@ public class Application implements ApplicationRunner {
                 exporter.write(List.of("P95", percentile(allDurationMillis, .95), "ms"));
                 exporter.write(List.of("P99", percentile(allDurationMillis, .99), "ms"));
                 exporter.write(List.of("P999", percentile(allDurationMillis, .999), "ms"));
-
-                workload.doAfterExecution(exporter);
             } catch (IOException e) {
                 logger.error("", e);
             }
-        } else {
-            workload.doAfterExecution(() -> {
-            });
         }
     }
 

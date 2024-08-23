@@ -13,7 +13,6 @@ import org.springframework.transaction.support.TransactionCallback;
 import io.roach.chaos.model.Account;
 import io.roach.chaos.util.AsciiArt;
 import io.roach.chaos.util.ConsoleOutput;
-import io.roach.chaos.util.Exporter;
 import io.roach.chaos.util.TransactionWrapper;
 import io.roach.chaos.util.Tuple;
 
@@ -26,14 +25,14 @@ public class LostUpdate extends AbstractWorkload {
     private BigDecimal initialBalance;
 
     @Override
-    protected void preValidate() {
+    public void validateSettings() {
         if (settings.getSelection() <= settings.getContentionLevel()) {
             throw new IllegalStateException("Account selection must be > than contention level");
         }
     }
 
     @Override
-    public List<Duration> doExecute() {
+    public List<Duration> oneExecution() {
         final Collection<Account> accounts = selectRandomUnique(accountSelection, settings.getContentionLevel());
 
         final BigDecimal amount = BigDecimal.valueOf(ThreadLocalRandom.current().nextDouble(1, 10))
@@ -49,13 +48,11 @@ public class LostUpdate extends AbstractWorkload {
             }
         }
 
-        final List<Duration> durations = new ArrayList<>();
-
         TransactionCallback<Void> callback = status -> {
             BigDecimal checksum = BigDecimal.ZERO;
 
             for (Tuple<Account, BigDecimal> leg : legs) {
-                Account account = accountRepository.findById(leg.getA().getId(), settings.getLockType());
+                Account account = accountRepository.findAccountById(leg.getA().getId(), settings.getLockType());
 
                 if (settings.isOptimisticLocking()) {
                     accountRepository.updateBalanceCAS(account.addBalance(leg.getB()));
@@ -75,6 +72,8 @@ public class LostUpdate extends AbstractWorkload {
             return null;
         };
 
+        final List<Duration> durations = new ArrayList<>();
+
         TransactionWrapper transactionWrapper = transactionWrapper();
         transactionWrapper.execute(callback, durations::addAll);
 
@@ -82,13 +81,13 @@ public class LostUpdate extends AbstractWorkload {
     }
 
     @Override
-    protected void beforeExecution() {
+    protected void doBeforeExecutions() {
         this.initialBalance = accountRepository.sumTotalBalance();
         this.accountSelection.addAll(accountRepository.findTargetAccounts(settings.getSelection(), settings.isRandomSelection()));
     }
 
     @Override
-    protected void afterExecution(Exporter exporter) {
+    public void afterAllExecutions() {
         ConsoleOutput.header("Consistency Check");
 
         BigDecimal finalBalance = accountRepository.sumTotalBalance();
@@ -105,7 +104,5 @@ public class LostUpdate extends AbstractWorkload {
             ConsoleOutput.info("You are good! %s".formatted(AsciiArt.happy()));
             ConsoleOutput.info("To observe anomalies, try read-committed without locking (ex: --isolation rc)");
         }
-
-        exporter.write(List.of("discrepancies", initialBalance.equals(finalBalance) ? 0 : 1, "counter"));
     }
 }

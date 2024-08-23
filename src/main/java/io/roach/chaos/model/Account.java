@@ -10,6 +10,16 @@ public class Account {
 
     private BigDecimal balance;
 
+    private String name;
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
     public Id getId() {
         return id;
     }
@@ -71,22 +81,23 @@ public class Account {
     public static class Id {
         private final Long id;
 
-        private final AccountType type;
+        private final String type;
 
         public Id(Long id, String type) {
-            this(id, AccountType.valueOf(type));
+            this.id = id;
+            this.type = type;
         }
 
         public Id(Long id, AccountType type) {
             this.id = id;
-            this.type = type;
+            this.type = type.name();
         }
 
         public Long getId() {
             return id;
         }
 
-        public AccountType getType() {
+        public String getType() {
             return type;
         }
 

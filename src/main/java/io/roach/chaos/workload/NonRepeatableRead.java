@@ -20,10 +20,9 @@ import org.springframework.transaction.support.TransactionCallback;
 import io.roach.chaos.model.Account;
 import io.roach.chaos.util.AsciiArt;
 import io.roach.chaos.util.ConsoleOutput;
-import io.roach.chaos.util.Exporter;
 import io.roach.chaos.util.TransactionWrapper;
 
-@Note("P2 non-repeatable read anomaly")
+@Note("P2 non-repeatable / fuzzy read anomaly")
 public class NonRepeatableRead extends AbstractWorkload {
     private Collection<Account> accounts = List.of();
 
@@ -36,11 +35,12 @@ public class NonRepeatableRead extends AbstractWorkload {
     private final AtomicInteger writes = new AtomicInteger();
 
     @Override
-    protected void preValidate() {
+    protected void doBeforeExecutions() {
+        this.accounts = accountRepository.findTargetAccounts(settings.getSelection(), settings.isRandomSelection());
     }
 
     @Override
-    public List<Duration> doExecute() {
+    public List<Duration> oneExecution() {
         // Let's roll with 10% writes
         if (ThreadLocalRandom.current().nextDouble(1.00) < settings.getReadWriteRatio()) {
             reads.incrementAndGet();
@@ -50,9 +50,7 @@ public class NonRepeatableRead extends AbstractWorkload {
         return writeRows();
     }
 
-    public List<Duration> readRows() {
-        final List<Duration> durations = new ArrayList<>();
-
+    private List<Duration> readRows() {
         final Map<Account.Id, List<BigDecimal>> balanceObservations = new LinkedHashMap<>();
 
         // Within the same transaction, all reads must return the same value otherwise its a P2 anomaly
@@ -64,7 +62,7 @@ public class NonRepeatableRead extends AbstractWorkload {
                 // Add write mutex scoped by account id
                 IntStream.rangeClosed(1, repeatedReads)
                         .forEach(value -> {
-                            Account account = accountRepository.findById(a.getId(), settings.getLockType());
+                            Account account = accountRepository.findAccountById(a.getId(), settings.getLockType());
 
                             balanceObservations.computeIfAbsent(a.getId(),
                                             x -> new ArrayList<>())
@@ -73,6 +71,8 @@ public class NonRepeatableRead extends AbstractWorkload {
             });
             return null;
         };
+
+        final List<Duration> durations = new ArrayList<>();
 
         TransactionWrapper transactionWrapper = transactionWrapper();
         transactionWrapper.execute(callback, durations::addAll);
@@ -89,9 +89,7 @@ public class NonRepeatableRead extends AbstractWorkload {
         return durations;
     }
 
-    public List<Duration> writeRows() {
-        final List<Duration> durations = new ArrayList<>();
-
+    private List<Duration> writeRows() {
         TransactionCallback<Void> callback = status -> {
             accounts.forEach(a -> {
                 if (settings.isOptimisticLocking()) {
@@ -103,6 +101,8 @@ public class NonRepeatableRead extends AbstractWorkload {
             return null;
         };
 
+        final List<Duration> durations = new ArrayList<>();
+
         TransactionWrapper transactionWrapper = transactionWrapper();
         transactionWrapper.execute(callback, durations::addAll);
 
@@ -110,14 +110,8 @@ public class NonRepeatableRead extends AbstractWorkload {
     }
 
     @Override
-    protected void beforeExecution() {
-        this.accounts = accountRepository.findTargetAccounts(settings.getSelection(), settings.isRandomSelection());
-    }
-
-    @Override
-    protected void afterExecution(Exporter exporter) {
+    public void afterAllExecutions() {
         ConsoleOutput.header("Consistency Check");
-
 
         anomalies.forEach((id, balances) -> {
             ConsoleOutput.error("Observed non-repeatable values for key %s: %s".formatted(id, balances));
@@ -130,9 +124,10 @@ public class NonRepeatableRead extends AbstractWorkload {
             ConsoleOutput.info("You are good! %s".formatted(AsciiArt.happy()));
             ConsoleOutput.info("To observe anomalies, try read-committed without locking (ex: --isolation rc)");
         } else {
-            ConsoleOutput.error("Observed %d accounts with non-repeatable reads! %s"
+            ConsoleOutput.error("Observed %d accounts returning non-repeatable reads! %s"
                     .formatted(anomalies.size(), AsciiArt.flipTableRoughly()));
-            ConsoleOutput.info("To avoid anomalies, try read-committed with locking or repeatable-read or higher isolation (ex: --locking for_share)");
+            ConsoleOutput.info(
+                    "To avoid anomalies, try read-committed with locking or repeatable-read or higher isolation (ex: --locking for_share)");
         }
     }
 }

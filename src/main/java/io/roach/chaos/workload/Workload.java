@@ -3,16 +3,20 @@ package io.roach.chaos.workload;
 import java.time.Duration;
 import java.util.List;
 
-import io.roach.chaos.util.Exporter;
-
 public interface Workload {
     String databaseVersion();
 
     String isolationLevel();
 
-    void doBeforeExecution();
+    default void validateSettings() {
+    }
 
-    List<Duration> doExecute();
+    default void beforeAllExecutions() {
+    }
 
-    void doAfterExecution(Exporter exporter);
+    List<Duration> oneExecution();
+
+    default void afterAllExecutions() {
+
+    }
 }
