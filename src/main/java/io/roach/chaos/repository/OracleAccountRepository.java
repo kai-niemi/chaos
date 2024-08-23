@@ -20,8 +20,10 @@ public class OracleAccountRepository extends MySQLAccountRepository {
     }
 
     @Override
-    public List<Account> findRandomAccounts(int limit) {
-        return jdbcTemplate.query("SELECT * FROM (select * from account ORDER BY DBMS_RANDOM.RANDOM) where rownum<?",
+    public List<Account> findTargetAccounts(int limit, boolean random) {
+        return jdbcTemplate.query(random
+                        ? "SELECT * FROM (select * from account ORDER BY DBMS_RANDOM.RANDOM) where rownum<?"
+                        : "SELECT * FROM account order by id where rownum<?",
                 ps -> {
                     ps.setInt(1, limit);
                     ps.setFetchSize(limit);

@@ -7,16 +7,17 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import io.roach.chaos.model.Dialect;
-import io.roach.chaos.model.Settings;
 import io.roach.chaos.repository.AccountRepository;
 import io.roach.chaos.repository.CockroachAccountRepository;
 import io.roach.chaos.repository.MySQLAccountRepository;
 import io.roach.chaos.repository.OracleAccountRepository;
 import io.roach.chaos.repository.PostgresAccountRepository;
-import io.roach.chaos.workload.LostUpdateWorkload;
-import io.roach.chaos.workload.ReadSkewWorkload;
+import io.roach.chaos.workload.LostUpdate;
+import io.roach.chaos.workload.NonRepeatableRead;
+import io.roach.chaos.workload.PhantomRead;
+import io.roach.chaos.workload.ReadSkew;
 import io.roach.chaos.workload.Workload;
-import io.roach.chaos.workload.WriteSkewWorkload;
+import io.roach.chaos.workload.WriteSkew;
 
 @Configuration
 @ConfigurationPropertiesScan(basePackageClasses = Application.class)
@@ -30,14 +31,20 @@ public class ApplicationConfig {
     @Bean
     public Workload workload() {
         switch (settings.getWorkloadType()) {
+            case NON_REPEATABLE_READ -> {
+                return new NonRepeatableRead();
+            }
+            case PHANTOM_READ -> {
+                return new PhantomRead();
+            }
             case READ_SKEW -> {
-                return new ReadSkewWorkload();
+                return new ReadSkew();
             }
             case WRITE_SKEW -> {
-                return new WriteSkewWorkload();
+                return new WriteSkew();
             }
             case LOST_UPDATE -> {
-                return new LostUpdateWorkload();
+                return new LostUpdate();
             }
             default -> throw new RuntimeException("Unknown workload: " + settings.getWorkloadType());
         }

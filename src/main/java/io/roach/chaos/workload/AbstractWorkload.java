@@ -12,7 +12,7 @@ import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 
-import io.roach.chaos.model.Settings;
+import io.roach.chaos.Settings;
 import io.roach.chaos.repository.AccountRepository;
 import io.roach.chaos.util.AsciiArt;
 import io.roach.chaos.util.Exporter;
@@ -20,7 +20,7 @@ import io.roach.chaos.util.RetryableTransactionWrapper;
 import io.roach.chaos.util.TransactionWrapper;
 
 @Component
-public abstract class AbstractAccountWorkload implements Workload {
+public abstract class AbstractWorkload implements Workload {
     @Autowired
     protected Settings settings;
 

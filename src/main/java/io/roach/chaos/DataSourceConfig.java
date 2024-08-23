@@ -13,7 +13,6 @@ import org.springframework.context.annotation.Primary;
 
 import com.zaxxer.hikari.HikariDataSource;
 
-import io.roach.chaos.model.Settings;
 import net.ttddyy.dsproxy.listener.logging.DefaultQueryLogEntryCreator;
 import net.ttddyy.dsproxy.listener.logging.SLF4JLogLevel;
 import net.ttddyy.dsproxy.listener.logging.SLF4JQueryLoggingListener;
@@ -65,7 +64,7 @@ public class DataSourceConfig {
         ds.addDataSourceProperty("reWriteBatchedInserts", "true");
         ds.addDataSourceProperty("application_name", "Chaos");
         ds.setTransactionIsolation("TRANSACTION_" + settings.getIsolationLevel().name());
-        ds.setAutoCommit(true);
+        ds.setAutoCommit(false);
         ds.setInitializationFailTimeout(-1);
 
         if (ds.getJdbcUrl().startsWith("jdbc:cockroachdb")) {

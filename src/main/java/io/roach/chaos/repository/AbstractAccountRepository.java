@@ -14,7 +14,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import io.roach.chaos.model.Account;
 import io.roach.chaos.model.AccountType;
 import io.roach.chaos.model.LockType;
-import io.roach.chaos.model.Settings;
+import io.roach.chaos.Settings;
 
 public abstract class AbstractAccountRepository implements AccountRepository {
     public static final int BATCH_SIZE = 512;
@@ -49,8 +49,10 @@ public abstract class AbstractAccountRepository implements AccountRepository {
     }
 
     @Override
-    public List<Account> findRandomAccounts(int limit) {
-        return jdbcTemplate.query("SELECT * FROM account ORDER BY random() LIMIT ?",
+    public List<Account> findTargetAccounts(int limit, boolean random) {
+        return jdbcTemplate.query(
+                random ? "SELECT * FROM account ORDER BY random() LIMIT ?"
+                        : "SELECT * FROM account ORDER BY id LIMIT ?",
                 ps -> {
                     ps.setInt(1, limit);
                     ps.setFetchSize(limit);
@@ -130,9 +132,9 @@ public abstract class AbstractAccountRepository implements AccountRepository {
 
         if (rowsUpdated != 1) {
             throw new OptimisticLockingFailureException("id: " + id
-                            + " type: " + type
-                            + " amount: " + amount
-                            + " version: " + version);
+                    + " type: " + type
+                    + " amount: " + amount
+                    + " version: " + version);
         }
     }
 

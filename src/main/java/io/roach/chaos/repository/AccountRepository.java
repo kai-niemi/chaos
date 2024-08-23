@@ -21,7 +21,7 @@ public interface AccountRepository {
 
     Account findById(Account.Id id, LockType lock);
 
-    List<Account> findRandomAccounts(int limit);
+    List<Account> findTargetAccounts(int limit, boolean random);
 
     void updateBalance(Account account);
 

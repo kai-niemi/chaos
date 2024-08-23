@@ -1,6 +1,18 @@
 package io.roach.chaos.model;
 
 public enum WorkloadType {
+    NON_REPEATABLE_READ {
+        @Override
+        public String alias() {
+            return "P2";
+        }
+    },
+    PHANTOM_READ {
+        @Override
+        public String alias() {
+            return "P3";
+        }
+    },
     LOST_UPDATE {
         @Override
         public String alias() {

@@ -1,6 +1,11 @@
-package io.roach.chaos.model;
+package io.roach.chaos;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+
+import io.roach.chaos.model.Dialect;
+import io.roach.chaos.model.IsolationLevel;
+import io.roach.chaos.model.LockType;
+import io.roach.chaos.model.WorkloadType;
 
 @ConfigurationProperties("chaos")
 public class Settings {
@@ -18,6 +23,8 @@ public class Settings {
 
     private boolean quit;
 
+    private boolean randomSelection = true;
+
     private boolean debugProxy;
 
     private boolean skipCreate;
@@ -34,9 +41,27 @@ public class Settings {
 
     private int iterations = 1_000;
 
+    private double readWriteRatio = .9;
+
     private int workers;
 
     private String initFile;
+
+    public double getReadWriteRatio() {
+        return readWriteRatio;
+    }
+
+    public void setReadWriteRatio(double readWriteRatio) {
+        this.readWriteRatio = readWriteRatio;
+    }
+
+    public boolean isRandomSelection() {
+        return randomSelection;
+    }
+
+    public void setRandomSelection(boolean randomSelection) {
+        this.randomSelection = randomSelection;
+    }
 
     public boolean isQuit() {
         return quit;

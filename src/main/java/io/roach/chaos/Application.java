@@ -24,12 +24,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.data.jdbc.JdbcRepositoriesAutoConfiguration;
-import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 
-import io.roach.chaos.model.Settings;
 import io.roach.chaos.util.AsciiArt;
 import io.roach.chaos.util.ConsoleOutput;
 import io.roach.chaos.util.CsvExporter;
@@ -147,12 +144,16 @@ public class Application implements ApplicationRunner {
         printRight("Driver Version:", "%s".formatted(driver));
         printRight("Database Isolation:", "%s".formatted(isolationLevel));
 
-        ConsoleOutput.header("Workload");
+        ConsoleOutput.header("Workload Commons");
         printRight("Workload Type:", "%s".formatted(settings.getWorkloadType()));
         printRight("Account Total:", "%d".formatted(settings.getNumAccounts()));
         printRight("Account Selection:", "%d (%.1f%%)"
                 .formatted(settings.getSelection(),
                         (double) settings.getSelection() / (double) settings.getNumAccounts() * 100.0));
+        printRight("Sequential Selection:", "%s".formatted(!settings.isRandomSelection()));
+
+        ConsoleOutput.header("Workload Specifics");
+        printRight("R/W Ratio (P2 only):", "%s".formatted(settings.getReadWriteRatio()));
         printRight("Contention Level (P4 only):", "%s".formatted(settings.getContentionLevel()));
 
         ConsoleOutput.header("Concurrency");

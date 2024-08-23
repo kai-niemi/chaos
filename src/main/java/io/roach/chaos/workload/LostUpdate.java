@@ -20,7 +20,7 @@ import io.roach.chaos.util.Tuple;
 import static io.roach.chaos.util.RandomData.selectRandomUnique;
 
 @Note("P4 lost update anomaly")
-public class LostUpdateWorkload extends AbstractAccountWorkload {
+public class LostUpdate extends AbstractWorkload {
     private final List<Account> accountSelection = new ArrayList<>();
 
     private BigDecimal initialBalance;
@@ -84,7 +84,7 @@ public class LostUpdateWorkload extends AbstractAccountWorkload {
     @Override
     protected void beforeExecution() {
         this.initialBalance = accountRepository.sumTotalBalance();
-        this.accountSelection.addAll(accountRepository.findRandomAccounts(settings.getSelection()));
+        this.accountSelection.addAll(accountRepository.findTargetAccounts(settings.getSelection(), settings.isRandomSelection()));
     }
 
     @Override

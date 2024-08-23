@@ -23,7 +23,7 @@ import io.roach.chaos.util.TransactionWrapper;
 import static io.roach.chaos.util.RandomData.selectRandom;
 
 @Note("A5B write skew anomaly")
-public class WriteSkewWorkload extends AbstractAccountWorkload {
+public class WriteSkew extends AbstractWorkload {
     private final List<Account> accountSelection = new ArrayList<>();
 
     private final AtomicInteger accept = new AtomicInteger();
@@ -83,7 +83,7 @@ public class WriteSkewWorkload extends AbstractAccountWorkload {
 
     @Override
     protected void beforeExecution() {
-        this.accountSelection.addAll(accountRepository.findRandomAccounts(settings.getSelection()));
+        this.accountSelection.addAll(accountRepository.findTargetAccounts(settings.getSelection(), settings.isRandomSelection()));
         this.accept.set(0);
         this.reject.set(0);
     }

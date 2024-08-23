@@ -22,8 +22,9 @@ public class MySQLAccountRepository extends AbstractAccountRepository {
     }
 
     @Override
-    public List<Account> findRandomAccounts(int limit) {
-        return jdbcTemplate.query("SELECT * FROM account ORDER BY rand() LIMIT ?",
+    public List<Account> findTargetAccounts(int limit, boolean random) {
+        return jdbcTemplate.query( random? "SELECT * FROM account ORDER BY rand() LIMIT ?"
+                        : "SELECT * FROM account ORDER BY id LIMIT ?",
                 ps -> {
                     ps.setInt(1, limit);
                     ps.setFetchSize(limit);

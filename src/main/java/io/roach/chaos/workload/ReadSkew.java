@@ -25,7 +25,7 @@ import io.roach.chaos.util.Tuple;
 import static io.roach.chaos.util.RandomData.selectRandom;
 
 @Note("A5A read skew anomaly")
-public class ReadSkewWorkload extends AbstractAccountWorkload {
+public class ReadSkew extends AbstractWorkload {
     private final List<Account> accountSelection = new ArrayList<>();
 
     private final List<Tuple<Long, BigDecimal>> discrepancies = Collections.synchronizedList(new ArrayList<>());
@@ -92,7 +92,7 @@ public class ReadSkewWorkload extends AbstractAccountWorkload {
 
     @Override
     protected void beforeExecution() {
-        this.accountSelection.addAll(accountRepository.findRandomAccounts(settings.getSelection()));
+        this.accountSelection.addAll(accountRepository.findTargetAccounts(settings.getSelection(), settings.isRandomSelection()));
         this.discrepancies.clear();
     }
 
