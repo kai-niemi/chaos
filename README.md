@@ -1,6 +1,6 @@
 # Chaos
 
-[![Java CI with Maven](https://github.com/kai-niemi/chaos/actions/workflows/maven.yml/badge.svg?branch=main)](https://github.com/kai-niemi/chaos/actions/workflows/maven.yml)
+[![Java CI with Maven](https://github.com/cloudneutral/chaos/actions/workflows/maven.yml/badge.svg?branch=main)](https://github.com/cloudneutral/chaos/actions/workflows/maven.yml)
 
 A small JDBC application for comparing the semantics of read-committed (RC) 
 and serializable (1SR) isolation levels in CockroachDB, PostgreSQL, MySQL 
