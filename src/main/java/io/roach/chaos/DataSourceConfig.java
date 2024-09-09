@@ -64,7 +64,7 @@ public class DataSourceConfig {
         ds.addDataSourceProperty("reWriteBatchedInserts", "true");
         ds.addDataSourceProperty("application_name", "Chaos");
         ds.setTransactionIsolation("TRANSACTION_" + settings.getIsolationLevel().name());
-        ds.setAutoCommit(false);
+        ds.setAutoCommit(true);
         ds.setInitializationFailTimeout(-1);
 
         if (ds.getJdbcUrl().startsWith("jdbc:cockroachdb")) {
