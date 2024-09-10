@@ -19,7 +19,6 @@ import org.springframework.transaction.support.TransactionCallback;
 
 import io.roach.chaos.model.Account;
 import io.roach.chaos.util.AsciiArt;
-import io.roach.chaos.util.ConsoleOutput;
 import io.roach.chaos.util.RandomData;
 import io.roach.chaos.util.TransactionWrapper;
 
@@ -134,24 +133,24 @@ public class PhantomRead extends AbstractWorkload {
 
     @Override
     public void afterAllExecutions() {
-        ConsoleOutput.header("Consistency Check");
+        logger.highlight("Consistency Check");
 
         anomalies.forEach((id, balances) -> {
-            ConsoleOutput.error("Observed phantom values for key %s: %s".formatted(id, balances));
+            logger.error("Observed phantom values for key %s: %s".formatted(id, balances));
         });
 
-        ConsoleOutput.printLeft("Total selects", "%d".formatted(selects.get()));
-        ConsoleOutput.printLeft("Total inserts", "%d".formatted(inserts.get()));
-        ConsoleOutput.printLeft("Total deletes", "%d".formatted(deletes.get()));
+        logger.info("Total selects: %d".formatted(selects.get()));
+        logger.info("Total inserts: %d".formatted(inserts.get()));
+        logger.info("Total deletes: %d".formatted(deletes.get()));
 
         if (anomalies.isEmpty()) {
-            ConsoleOutput.info("You are good! %s".formatted(AsciiArt.happy()));
-            ConsoleOutput.info("To observe anomalies, try read-committed without locking (ex: --isolation rc)");
+            logger.info("You are good! %s".formatted(AsciiArt.happy()));
+            logger.info("To observe anomalies, try read-committed without locking (--isolation rc)");
         } else {
-            ConsoleOutput.error("Observed %d accounts returning phantom reads! %s"
+            logger.error("Observed %d accounts returning phantom reads! %s"
                     .formatted(anomalies.size(), AsciiArt.flipTableRoughly()));
-            ConsoleOutput.info(
-                    "To avoid anomalies, try repeatable-read or higher isolation (ex: --isolation rr)");
+            logger.info(
+                    "To avoid anomalies, try repeatable-read or higher isolation (--isolation rr)");
         }
     }
 }

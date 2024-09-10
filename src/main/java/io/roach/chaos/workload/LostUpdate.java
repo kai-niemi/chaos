@@ -12,7 +12,6 @@ import org.springframework.transaction.support.TransactionCallback;
 
 import io.roach.chaos.model.Account;
 import io.roach.chaos.util.AsciiArt;
-import io.roach.chaos.util.ConsoleOutput;
 import io.roach.chaos.util.TransactionWrapper;
 import io.roach.chaos.util.Tuple;
 
@@ -88,21 +87,21 @@ public class LostUpdate extends AbstractWorkload {
 
     @Override
     public void afterAllExecutions() {
-        ConsoleOutput.header("Consistency Check");
+        logger.highlight("Consistency Check");
 
         BigDecimal finalBalance = accountRepository.sumTotalBalance();
 
-        ConsoleOutput.printRight("Initial total balance:", "%s".formatted(initialBalance));
-        ConsoleOutput.printRight("Final total balance:", "%s".formatted(finalBalance));
+        logger.info("Initial total balance: %s".formatted(initialBalance));
+        logger.info("Final total balance: %s".formatted(finalBalance));
 
         if (!initialBalance.equals(finalBalance)) {
-            ConsoleOutput.error("%s != %s %s"
+            logger.error("%s != %s %s"
                     .formatted(initialBalance, finalBalance, AsciiArt.flipTableRoughly()));
-            ConsoleOutput.error("You just lost %s and may want to reconsider your isolation level!! (or use locking)"
+            logger.error("You just lost %s and may want to reconsider your isolation level!! (or use locking)"
                     .formatted(initialBalance.subtract(finalBalance)));
         } else {
-            ConsoleOutput.info("You are good! %s".formatted(AsciiArt.happy()));
-            ConsoleOutput.info("To observe anomalies, try read-committed without locking (ex: --isolation rc)");
+            logger.info("You are good! %s".formatted(AsciiArt.happy()));
+            logger.info("To observe anomalies, try read-committed without locking (--isolation rc)");
         }
     }
 }

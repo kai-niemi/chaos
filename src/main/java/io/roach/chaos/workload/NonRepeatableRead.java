@@ -19,7 +19,6 @@ import org.springframework.transaction.support.TransactionCallback;
 
 import io.roach.chaos.model.Account;
 import io.roach.chaos.util.AsciiArt;
-import io.roach.chaos.util.ConsoleOutput;
 import io.roach.chaos.util.TransactionWrapper;
 
 @Note("P2 non-repeatable / fuzzy read anomaly")
@@ -111,23 +110,22 @@ public class NonRepeatableRead extends AbstractWorkload {
 
     @Override
     public void afterAllExecutions() {
-        ConsoleOutput.header("Consistency Check");
+        logger.highlight("Consistency Check");
 
-        anomalies.forEach((id, balances) -> {
-            ConsoleOutput.error("Observed non-repeatable values for key %s: %s".formatted(id, balances));
-        });
+        anomalies.forEach((id, balances) ->
+                logger.error("Observed non-repeatable values for key %s: %s".formatted(id, balances)));
 
-        ConsoleOutput.printLeft("Total reads", "%d".formatted(reads.get()));
-        ConsoleOutput.printLeft("Total writes", "%d".formatted(writes.get()));
+        logger.info("Total reads: %d".formatted(reads.get()));
+        logger.info("Total writes: %d".formatted(writes.get()));
 
         if (anomalies.isEmpty()) {
-            ConsoleOutput.info("You are good! %s".formatted(AsciiArt.happy()));
-            ConsoleOutput.info("To observe anomalies, try read-committed without locking (ex: --isolation rc)");
+            logger.info("You are good! %s".formatted(AsciiArt.happy()));
+            logger.info("To observe anomalies, try read-committed without locking (--isolation rc)");
         } else {
-            ConsoleOutput.error("Observed %d accounts returning non-repeatable reads! %s"
+            logger.error("Observed %d accounts returning non-repeatable reads! %s"
                     .formatted(anomalies.size(), AsciiArt.flipTableRoughly()));
-            ConsoleOutput.info(
-                    "To avoid anomalies, try read-committed with locking or repeatable-read or higher isolation (ex: --locking for_share)");
+            logger.info(
+                    "To avoid anomalies, try read-committed with locking or repeatable-read or higher isolation (--locking for_share)");
         }
     }
 }

@@ -7,7 +7,7 @@ spring:
     active:
   output:
     ansi:
-      enabled: ALWAYS
+      enabled: always
   datasource:
     hikari:
       connection-test-query: SELECT 1
@@ -19,4 +19,8 @@ spring:
       minimum-idle: 8
 logging:
   pattern:
-    console: "%clr(%d{${LOG_DATEFORMAT_PATTERN:HH:mm:ss.SSS}}){faint} %clr(${LOG_LEVEL_PATTERN:%5p}) [%t] %clr([%logger{39}]){cyan} %m%n${LOG_EXCEPTION_CONVERSION_WORD:%wEx}"
+    console: "%clr(%d{${LOG_DATEFORMAT_PATTERN:HH:mm:ss.SSS}}){faint} %clr(${LOG_LEVEL_PATTERN:%5p}) [%t] %m%n${LOG_EXCEPTION_CONVERSION_WORD:%wEx}"
+    file: "%d{${LOG_DATEFORMAT_PATTERN:HH:mm:ss.SSS}} ${LOG_LEVEL_PATTERN:%5p} [%t]: %m%n${LOG_EXCEPTION_CONVERSION_WORD:%wEx}"
+  logback:
+    rollingpolicy:
+      max-history: 3

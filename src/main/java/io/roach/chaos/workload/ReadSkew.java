@@ -17,7 +17,6 @@ import org.springframework.transaction.support.TransactionCallback;
 import io.roach.chaos.model.Account;
 import io.roach.chaos.model.AccountType;
 import io.roach.chaos.util.AsciiArt;
-import io.roach.chaos.util.ConsoleOutput;
 import io.roach.chaos.util.TransactionWrapper;
 import io.roach.chaos.util.Tuple;
 
@@ -98,44 +97,44 @@ public class ReadSkew extends AbstractWorkload {
 
     @Override
     public void afterAllExecutions() {
-        ConsoleOutput.header("Consistency Check");
+        logger.highlight("Consistency Check");
 
         AtomicInteger negativeAccounts = new AtomicInteger();
         AtomicReference<BigDecimal> total = new AtomicReference<>(BigDecimal.ZERO);
 
         accountRepository.findNegativeBalances(pair -> {
-            ConsoleOutput.error("Negative balance for account tuple id: %s (%,f)"
+            logger.error("Negative balance for account tuple id: %s (%,f)"
                     .formatted(pair.getFirst(), pair.getSecond()));
             negativeAccounts.incrementAndGet();
             total.set(total.get().add(pair.getSecond()));
         });
 
         if (discrepancies.isEmpty()) {
-            ConsoleOutput.info("No account balance discrepancies %s"
+            logger.info("No account balance discrepancies %s"
                     .formatted(AsciiArt.happy()));
         } else {
             discrepancies
                     .stream()
                     .limit(10)
-                    .forEach(tuple -> ConsoleOutput.error(
+                    .forEach(tuple -> logger.error(
                             "Observed inconsistent sum for account tuple id: %s (%,.2f) - expected %,.2f"
                                     .formatted(tuple.getA(), tuple.getB(), tupleSum)));
-            ConsoleOutput.error("Total of %d account balance discrepancies (listing top 10): %s"
+            logger.error("Total of %d account balance discrepancies (listing top 10): %s"
                     .formatted(discrepancies.size(), AsciiArt.flipTableRoughly()));
         }
 
         if (negativeAccounts.get() > 0) {
-            ConsoleOutput.error("You have %d account tuples with a negative total balance! %s"
+            logger.error("You have %d account tuples with a negative total balance! %s"
                     .formatted(negativeAccounts.get(), AsciiArt.flipTableRoughly()));
-            ConsoleOutput.error("You just lost %s and may want to reconsider your isolation level!! (or use locking)"
+            logger.error("You just lost %s and may want to reconsider your isolation level!! (or use locking)"
                     .formatted(total.get()));
         } else {
-            ConsoleOutput.info("No negative balances %s"
+            logger.info("No negative balances %s"
                     .formatted(AsciiArt.happy()));
 
             if (discrepancies.isEmpty()) {
-                ConsoleOutput.info(
-                        "To observe anomalies, try read-committed without locking and account narrowing (ex: --isolation rc --selection 20)");
+                logger.info("To observe anomalies, try read-committed without locking and account narrowing "
+                        + "(--isolation rc --selection 20)");
             }
         }
     }

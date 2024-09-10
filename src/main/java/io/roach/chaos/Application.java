@@ -19,8 +19,6 @@ import java.util.stream.IntStream;
 
 import javax.sql.DataSource;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -28,21 +26,18 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.data.jdbc.JdbcRepositoriesAutoConfiguration;
 
 import io.roach.chaos.util.AsciiArt;
-import io.roach.chaos.util.ConsoleOutput;
+import io.roach.chaos.util.ColoredLogger;
 import io.roach.chaos.util.CsvExporter;
 import io.roach.chaos.util.DatabaseInfo;
 import io.roach.chaos.util.Exporter;
 import io.roach.chaos.workload.Workload;
 
-import static io.roach.chaos.util.ConsoleOutput.error;
-import static io.roach.chaos.util.ConsoleOutput.info;
-import static io.roach.chaos.util.ConsoleOutput.printRight;
 
 @SpringBootApplication(exclude = {
         JdbcRepositoriesAutoConfiguration.class
 })
 public class Application implements ApplicationRunner {
-    private static final Logger logger = LoggerFactory.getLogger(Application.class);
+    protected final ColoredLogger logger = ColoredLogger.newInstance();
 
     @Autowired
     private DataSource dataSource;
@@ -52,17 +47,6 @@ public class Application implements ApplicationRunner {
 
     @Autowired
     private Workload workload;
-
-    private static double percentile(List<Double> orderedList, double percentile) {
-        if (percentile < 0 || percentile > 1) {
-            throw new IllegalArgumentException(">=0 N <=1");
-        }
-        if (!orderedList.isEmpty()) {
-            int index = (int) Math.ceil(percentile * orderedList.size());
-            return orderedList.get(index - 1);
-        }
-        return 0f;
-    }
 
     @Override
     public void run(ApplicationArguments args) {
@@ -82,7 +66,7 @@ public class Application implements ApplicationRunner {
         printSettings(args);
 
         if (settings.isQuit()) {
-            info("Quitting..");
+            logger.info("Quitting..");
             System.exit(0);
         }
 
@@ -125,11 +109,24 @@ public class Application implements ApplicationRunner {
                     fails++;
                 }
             }
-        } finally {
+
+            printSettings(args);
             printResults(Duration.between(startTime, Instant.now()), commits, fails, totalRetries.get(), allDurations);
             workload.afterAllExecutions();
+        } finally {
             executorService.shutdownNow();
         }
+    }
+
+    private static double percentile(List<Double> orderedList, double percentile) {
+        if (percentile < 0 || percentile > 1) {
+            throw new IllegalArgumentException(">=0 N <=1");
+        }
+        if (!orderedList.isEmpty()) {
+            int index = (int) Math.ceil(percentile * orderedList.size());
+            return orderedList.get(index - 1);
+        }
+        return 0f;
     }
 
     private void printSettings(ApplicationArguments args) {
@@ -137,48 +134,48 @@ public class Application implements ApplicationRunner {
         final String isolationLevel = workload.isolationLevel();
         final String driver = DatabaseInfo.driverVersion(dataSource);
 
-        printRight("Args:", "%s".formatted(Arrays.stream(args.getSourceArgs()).toList()));
+        logger.info("Args: %s".formatted(Arrays.stream(args.getSourceArgs()).toList()));
 
-        ConsoleOutput.header("Database");
+        logger.highlight("Database");
         {
             DatabaseInfo.inspectDatabaseMetadata(dataSource,
-                    (k, v) -> printRight(k + ":", "%s".formatted(v)));
-            printRight("Database Version:", "%s".formatted(version));
-            printRight("Driver Version:", "%s".formatted(driver));
-            printRight("Database Isolation:", "%s".formatted(isolationLevel));
+                    (k, v) -> logger.info(k + ": %s".formatted(v)));
+            logger.info("Database Version: %s".formatted(version));
+            logger.info("Driver Version: %s".formatted(driver));
+            logger.info("Database Isolation: %s".formatted(isolationLevel));
         }
 
-        ConsoleOutput.header("Workload Commons");
+        logger.highlight("Workload Commons");
         {
-            printRight("Workload Type:", "%s".formatted(settings.getWorkloadType()));
-            printRight("Account Total:", "%d".formatted(settings.getNumAccounts()));
-            printRight("Account Selection:", "%d (%.1f%%)"
+            logger.info("Workload Type: %s".formatted(settings.getWorkloadType()));
+            logger.info("Account Total: %d".formatted(settings.getNumAccounts()));
+            logger.info("Account Selection: %d (%.1f%%)"
                     .formatted(settings.getSelection(),
                             (double) settings.getSelection() / (double) settings.getNumAccounts() * 100.0));
-            printRight("Sequential Selection:", "%s".formatted(!settings.isRandomSelection()));
+            logger.info("Sequential Selection: %s".formatted(!settings.isRandomSelection()));
         }
 
-        ConsoleOutput.header("Workload Specifics");
+        logger.highlight("Workload Specifics");
         {
-            printRight("R/W Ratio (P2 only):", "%s".formatted(settings.getReadWriteRatio()));
-            printRight("Contention Level (P4 only):", "%s".formatted(settings.getContentionLevel()));
+            logger.info("R/W Ratio (P2 only): %s".formatted(settings.getReadWriteRatio()));
+            logger.info("Contention Level (P4 only): %s".formatted(settings.getContentionLevel()));
         }
 
-        ConsoleOutput.header("Concurrency");
+        logger.highlight("Concurrency");
         {
-            printRight("Worker Threads:", "%d".formatted(settings.getWorkers()));
-            printRight("Iterations:", "%d".formatted(settings.getIterations()));
-            printRight("Retry Jitter:", "%s".formatted(settings.isRetryJitter()));
-            printRight("Skip Retries:", "%s".formatted(settings.isSkipRetry()));
-            printRight("Skip DDL preset:", "%s".formatted(settings.isSkipCreate()));
-            printRight("Skip DML preset:", "%s".formatted(settings.isSkipInit()));
+            logger.info("Worker Threads: %d".formatted(settings.getWorkers()));
+            logger.info("Iterations: %d".formatted(settings.getIterations()));
+            logger.info("Retry Jitter: %s".formatted(settings.isRetryJitter()));
+            logger.info("Skip Retries: %s".formatted(settings.isSkipRetry()));
+            logger.info("Skip DDL preset: %s".formatted(settings.isSkipCreate()));
+            logger.info("Skip DML preset: %s".formatted(settings.isSkipInit()));
         }
 
-        ConsoleOutput.header("Safety");
+        logger.highlight("Safety");
         {
-            printRight("Lock Type:", "%s".formatted(settings.getLockType()));
-            printRight("Isolation Level:", "%s".formatted(settings.getIsolationLevel()));
-            printRight("Isolation Level Reported:", "%s".formatted(isolationLevel));
+            logger.info("Lock Type: %s".formatted(settings.getLockType()));
+            logger.info("Isolation Level: %s".formatted(settings.getIsolationLevel()));
+            logger.info("Reported Isolation Level: %s".formatted(isolationLevel));
         }
     }
 
@@ -198,32 +195,32 @@ public class Application implements ApplicationRunner {
                 .boxed()
                 .toList();
 
-        ConsoleOutput.header("Transactions");
+        logger.highlight("Transactions");
         {
-            printRight("Execution time:", "%s".formatted(duration));
-            printRight("Total commits:", "%,d".formatted(commits));
-            printRight("Total fails:", "%,d".formatted(fails));
-            printRight("Total retries:", "%,d".formatted(totalRetries));
+            logger.info("Execution time: %s".formatted(duration));
+            logger.info("Total commits: %,d".formatted(commits));
+            logger.info("Total fails: %,d".formatted(fails));
+            logger.info("Total retries: %,d".formatted(totalRetries));
         }
 
-        ConsoleOutput.header("Timings");
+        logger.highlight("Timings");
         {
-            printRight("Avg time in txn:", "%.1f ms".formatted(summaryStatistics.getAverage()));
-            printRight("Cumulative time in txn:", "%.0f ms".formatted(summaryStatistics.getSum()));
-            printRight("Min time in txn:", "%.1f ms".formatted(summaryStatistics.getMin()));
-            printRight("Max time in txn:", "%.1f ms".formatted(summaryStatistics.getMax()));
-            printRight("Total samples:", "%d".formatted(summaryStatistics.getCount()));
-            printRight("P50 latency:", "%.1f ms".formatted(percentile(allDurationMillis, .50)));
-            printRight("P95 latency:", "%.1f ms".formatted(percentile(allDurationMillis, .95)));
-            printRight("P99 latency:", "%.1f ms".formatted(percentile(allDurationMillis, .99)));
-            printRight("P999 latency:", "%.1f ms".formatted(percentile(allDurationMillis, .999)));
+            logger.info("Avg time in txn: %.1f ms".formatted(summaryStatistics.getAverage()));
+            logger.info("Cumulative time in txn: %.0f ms".formatted(summaryStatistics.getSum()));
+            logger.info("Min time in txn: %.1f ms".formatted(summaryStatistics.getMin()));
+            logger.info("Max time in txn: %.1f ms".formatted(summaryStatistics.getMax()));
+            logger.info("Total samples: %d".formatted(summaryStatistics.getCount()));
+            logger.info("P50 latency: %.1f ms".formatted(percentile(allDurationMillis, .50)));
+            logger.info("P95 latency: %.1f ms".formatted(percentile(allDurationMillis, .95)));
+            logger.info("P99 latency: %.1f ms".formatted(percentile(allDurationMillis, .99)));
+            logger.info("P999 latency: %.1f ms".formatted(percentile(allDurationMillis, .999)));
         }
 
         if (fails > 0) {
-            error("There were %d non-transient errors that may invalidate the final outcome!".formatted(fails));
+            logger.error("There were %d non-transient errors that may invalidate the final outcome!".formatted(fails));
         }
 
-        if (settings.isExport()) {
+        if (settings.isExportCsv()) {
             try (Exporter exporter = new CsvExporter(Path.of("chaos.csv"))) {
                 exporter.writeHeader(List.of("name", "value", "unit"));
                 exporter.write(List.of("duration", duration, "time"));

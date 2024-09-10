@@ -19,7 +19,7 @@ public class Settings {
 
     private boolean retryJitter;
 
-    private boolean export;
+    private boolean exportCsv;
 
     private boolean quit;
 
@@ -103,12 +103,12 @@ public class Settings {
         this.dialect = dialect;
     }
 
-    public boolean isExport() {
-        return export;
+    public boolean isExportCsv() {
+        return exportCsv;
     }
 
-    public void setExport(boolean export) {
-        this.export = export;
+    public void setExportCsv(boolean exportCsv) {
+        this.exportCsv = exportCsv;
     }
 
     public IsolationLevel getIsolationLevel() {

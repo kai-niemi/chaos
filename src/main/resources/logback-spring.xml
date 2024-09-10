@@ -3,23 +3,30 @@
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
     <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
 
-    <logger name="org.springframework" level="INFO"/>
-    <logger name="org.springframework.jdbc.datasource.init" level="DEBUG"/>
+    <property name="LOG_FILE" value="chaos.log"/>
+    <include resource="org/springframework/boot/logging/logback/file-appender.xml"/>
 
     <springProfile name="verbose">
-        <logger name="org.springframework.transaction.interceptor" level="TRACE"/>
-
-        <logger name="io.roach" level="TRACE"/>
-        <logger name="io.roach.SQL_TRACE" level="TRACE"/>
+        <logger name="io.roach" level="TRACE">
+        </logger>
     </springProfile>
 
     <springProfile name="!verbose">
-        <logger name="io.roach" level="INFO"/>
-        <logger name="io.roach.SQL_TRACE" level="INFO"/>
+        <logger name="io.roach" level="INFO">
+        </logger>
     </springProfile>
+
+    <logger name="io.roach.ANSI_ENABLED" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+
+    <logger name="io.roach.ANSI_DISABLED" level="INFO" additivity="false">
+        <appender-ref ref="FILE"/>
+    </logger>
 
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
     </root>
 </configuration>
 

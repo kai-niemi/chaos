@@ -43,7 +43,6 @@ public class DataSourceConfig {
                 .create(ds)
                 .asJson()
                 .listener(listener)
-                .multiline()
                 .build()
                 : ds;
     }

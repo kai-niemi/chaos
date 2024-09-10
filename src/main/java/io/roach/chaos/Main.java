@@ -16,12 +16,14 @@ import org.springframework.util.StringUtils;
 import io.roach.chaos.model.IsolationLevel;
 import io.roach.chaos.model.LockType;
 import io.roach.chaos.model.WorkloadType;
-import io.roach.chaos.util.AnsiColor;
 import io.roach.chaos.util.AsciiArt;
-import io.roach.chaos.util.ConsoleOutput;
+import io.roach.chaos.util.ColoredOutput;
 import io.roach.chaos.util.Multiplier;
+import io.roach.chaos.util.Output;
 
 public class Main {
+    private static final Output output = new ColoredOutput();
+
     public static void main(String[] args) {
         Map<String, Object> properties = new LinkedHashMap<>();
 
@@ -56,7 +58,7 @@ public class Main {
                 } else if (arg.equals("--quit")) {
                     properties.put("chaos.quit", true);
                 } else if (arg.equals("--export")) {
-                    properties.put("chaos.export", true);
+                    properties.put("chaos.exportCsv", true);
                 } else if (arg.equals("--skip-create")) {
                     properties.put("chaos.skipCreate", true);
                 } else if (arg.equals("--skip-init")) {
@@ -228,84 +230,84 @@ public class Main {
     }
 
     private static void printUsageAndQuit(String note) {
-        ConsoleOutput.print("Usage: java -jar chaos.jar [options] <workload>", AnsiColor.BOLD_BRIGHT_WHITE);
-        ConsoleOutput.info("");
+        output.info("Usage: java -jar chaos.jar [options] <workload>");
+        output.info("");
 
-        ConsoleOutput.header("Common Options:");
+        output.headerOne("Common Options:");
         {
-            ConsoleOutput.printLeft("--help", "this help");
-            ConsoleOutput.printLeft("--verbose", "enable verbose SQL trace logging", "(false)");
-            ConsoleOutput.printLeft("--export", "export results to chaos.csv file", "(false)");
-            ConsoleOutput.printLeft("--quit", "test connection to database and quit", "(false)");
-            ConsoleOutput.info("");
+            output.printLeft("--help", "this help");
+            output.printLeft("--verbose", "enable verbose SQL trace logging", "(false)");
+            output.printLeft("--export", "export results to chaos.csv file", "(false)");
+            output.printLeft("--quit", "test connection to database and quit", "(false)");
+            output.info("");
         }
 
-        ConsoleOutput.header("Connection Options:");
+        output.headerOne("Connection Options:");
         {
-            ConsoleOutput.printLeft("--profile <db>", "database profile (url and credentials)", "(crdb)");
-            ConsoleOutput.printLeft("  crdb", "use CockroachDB via pgJDBC");
-            ConsoleOutput.printLeft("  psql", "use PostgreSQL via pgJDBC");
-            ConsoleOutput.printLeft("  mysql", "use MySQL via mysql-connector");
-            ConsoleOutput.printLeft("  oracle", "use Oracle via ojdbc8");
+            output.printLeft("--profile <db>", "database profile (url and credentials)", "(crdb)");
+            output.printLeft("  crdb", "use CockroachDB via pgJDBC");
+            output.printLeft("  psql", "use PostgreSQL via pgJDBC");
+            output.printLeft("  mysql", "use MySQL via mysql-connector");
+            output.printLeft("  oracle", "use Oracle via ojdbc8");
 
-            ConsoleOutput.printLeft("--url", "override datasource URL",
+            output.printLeft("--url", "override datasource URL",
                     "(jdbc:postgresql://localhost:26257/chaos?sslmode=disable)");
-            ConsoleOutput.printLeft("--user", "override datasource user name", "(root)");
-            ConsoleOutput.printLeft("--password", "override datasource password", "(<empty>)");
-            ConsoleOutput.info("");
+            output.printLeft("--user", "override datasource user name", "(root)");
+            output.printLeft("--password", "override datasource password", "(<empty>)");
+            output.info("");
         }
 
-        ConsoleOutput.header("DDL/DML Options:");
+        output.headerOne("DDL/DML Options:");
         {
-            ConsoleOutput.printLeft("--skip-create", "skip DDL/create script at startup", "(false)");
-            ConsoleOutput.printLeft("--skip-init", "skip DML/init script at startup", "(false)");
-            ConsoleOutput.info("");
+            output.printLeft("--skip-create", "skip DDL/create script at startup", "(false)");
+            output.printLeft("--skip-init", "skip DML/init script at startup", "(false)");
+            output.info("");
         }
 
-        ConsoleOutput.header("Common Workload Options:");
+        output.headerOne("Common Workload Options:");
         {
-            ConsoleOutput.printLeft("--isolation", "set isolation level", "(1SR)");
+            output.printLeft("--isolation", "set isolation level", "(1SR)");
 
             EnumSet.allOf(IsolationLevel.class)
-                    .forEach(isolationLevel -> ConsoleOutput.printLeft("  " + isolationLevel.name(),
+                    .forEach(isolationLevel -> output.printLeft("  " + isolationLevel.name(),
                             isolationLevel.alias()));
 
-            ConsoleOutput.printLeft("--locking", "enable optimistic (cas) or pessimistic locking", "(NONE)");
+            output.printLeft("--locking", "enable optimistic (cas) or pessimistic locking", "(NONE)");
 
             EnumSet.allOf(LockType.class)
-                    .forEach(lockType -> ConsoleOutput.printLeft("  " + lockType.name(), lockType.alias()));
+                    .forEach(lockType -> output.printLeft("  " + lockType.name(), lockType.alias()));
 
             int workers = Runtime.getRuntime().availableProcessors() * 2;
 
-            ConsoleOutput.printLeft("--threads <num>", "max number of threads", "(host vCPUs x 2 = " + workers + ")");
-            ConsoleOutput.printLeft("--iterations <num>", "number of cycles to run", "(1K)");
-            ConsoleOutput.printLeft("--accounts <num>", "number of accounts to create and randomize between", "(50K)");
-            ConsoleOutput.printLeft("--selection <num>", "random selection of accounts to pick between", "(500)");
-            ConsoleOutput.info("  Hint: decrease selection to observe anomalies in read-committed.");
-            ConsoleOutput.printLeft("--sequential", "sequential selection of accounts rather than random", "(false)");
-            ConsoleOutput.printLeft("--skip-retry", "skip client-side retries", "(false)");
-            ConsoleOutput.printLeft("--jitter", "enable exponential backoff jitter on client-side retries", "(false)");
-            ConsoleOutput.info("  Hint: skip jitter for more comparable results between isolation levels.");
-            ConsoleOutput.info("");
+            output.printLeft("--threads <num>", "max number of threads", "(host vCPUs x 2 = " + workers + ")");
+            output.printLeft("--iterations <num>", "number of cycles to run", "(1K)");
+            output.printLeft("--accounts <num>", "number of accounts to create and randomize between", "(50K)");
+            output.printLeft("--selection <num>", "random selection of accounts to pick between", "(500)");
+            output.info("  Hint: decrease selection to observe anomalies in read-committed.");
+            output.printLeft("--sequential", "sequential selection of accounts rather than random", "(false)");
+            output.printLeft("--skip-retry", "skip client-side retries", "(false)");
+            output.printLeft("--jitter", "enable exponential backoff jitter on client-side retries", "(false)");
+            output.info("  Hint: skip jitter for more comparable results between isolation levels.");
+            output.info("");
         }
 
-        ConsoleOutput.header("Specific Workload Options:");
+        output.headerOne("Specific Workload Options:");
         {
-            ConsoleOutput.printLeft("--contention <num>", "contention level for the P4 lost update workload", "(2)");
-            ConsoleOutput.printLeft("--ratio <nun>", "read-write ratio for the P2 fuzzy read workload", "(.9)");
-            ConsoleOutput.info("");
+            output.printLeft("--contention <num>", "contention level for the P4 lost update workload", "(2)");
+            output.printLeft("--ratio <nun>", "read-write ratio for the P2 fuzzy read workload", "(.9)");
+            output.info("");
         }
 
-        ConsoleOutput.header("Workload Types:");
+        output.headerOne("Workload Types:");
         {
             EnumSet.allOf(WorkloadType.class)
-                    .forEach(workloadType -> ConsoleOutput.printLeft("  " + workloadType.name(), workloadType.alias()));
+                    .forEach(workloadType -> output.printLeft("  " + workloadType.name(), workloadType.alias()));
 
-            ConsoleOutput.info("");
+            output.info("");
         }
 
-        ConsoleOutput.error(note);
-        ConsoleOutput.error(AsciiArt.shrug());
+        output.error(note);
+        output.error(AsciiArt.shrug());
 
         System.exit(1);
     }

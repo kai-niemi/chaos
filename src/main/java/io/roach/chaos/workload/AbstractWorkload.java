@@ -15,11 +15,14 @@ import org.springframework.transaction.PlatformTransactionManager;
 import io.roach.chaos.Settings;
 import io.roach.chaos.repository.AccountRepository;
 import io.roach.chaos.util.AsciiArt;
+import io.roach.chaos.util.ColoredLogger;
 import io.roach.chaos.util.RetryableTransactionWrapper;
 import io.roach.chaos.util.TransactionWrapper;
 
 @Component
 public abstract class AbstractWorkload implements Workload {
+    protected final ColoredLogger logger = ColoredLogger.newInstance();
+
     @Autowired
     protected Settings settings;
 
