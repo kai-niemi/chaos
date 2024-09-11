@@ -23,7 +23,7 @@ import io.roach.chaos.util.TransactionWrapper;
 
 @Note("P2 non-repeatable / fuzzy read anomaly")
 public class NonRepeatableRead extends AbstractWorkload {
-    private Collection<Account> accounts = List.of();
+    private Collection<Account> accountSelection = List.of();
 
     private final int repeatedReads = 10;
 
@@ -35,7 +35,7 @@ public class NonRepeatableRead extends AbstractWorkload {
 
     @Override
     protected void doBeforeExecutions() {
-        this.accounts = accountRepository.findTargetAccounts(settings.getSelection(), settings.isRandomSelection());
+        this.accountSelection = accountRepository.findTargetAccounts(settings.getSelection(), settings.isRandomSelection());
     }
 
     @Override
@@ -57,7 +57,7 @@ public class NonRepeatableRead extends AbstractWorkload {
             // Clear previous observation on retries
             balanceObservations.clear();
 
-            accounts.forEach(a -> {
+            accountSelection.forEach(a -> {
                 // Add write mutex scoped by account id
                 IntStream.rangeClosed(1, repeatedReads)
                         .forEach(value -> {
@@ -90,7 +90,7 @@ public class NonRepeatableRead extends AbstractWorkload {
 
     private List<Duration> writeRows() {
         TransactionCallback<Void> callback = status -> {
-            accounts.forEach(a -> {
+            accountSelection.forEach(a -> {
                 if (settings.isOptimisticLocking()) {
                     accountRepository.updateBalanceCAS(a.addBalance(BigDecimal.ONE));
                 } else {

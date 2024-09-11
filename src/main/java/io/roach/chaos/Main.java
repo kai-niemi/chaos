@@ -15,7 +15,7 @@ import org.springframework.util.StringUtils;
 
 import io.roach.chaos.model.IsolationLevel;
 import io.roach.chaos.model.LockType;
-import io.roach.chaos.model.WorkloadType;
+import io.roach.chaos.workload.WorkloadType;
 import io.roach.chaos.util.AsciiArt;
 import io.roach.chaos.util.ColoredOutput;
 import io.roach.chaos.util.Multiplier;
@@ -200,21 +200,21 @@ public class Main {
         }
 
         if (springProfiles.contains("crdb")) {
-            url = url.equals("") ? "jdbc:postgresql://localhost:26257/chaos?sslmode=disable" : url;
-            user = user.equals("") ? "root" : user;
-            password = password.equals("") ? "root" : password;
+            url = url.isEmpty() ? "jdbc:postgresql://localhost:26257/chaos?sslmode=disable" : url;
+            user = user.isEmpty() ? "root" : user;
+            password = password.isEmpty() ? "root" : password;
         } else if (springProfiles.contains("psql")) {
-            url = url.equals("") ? "jdbc:postgresql://localhost:5432/chaos?sslmode=disable" : url;
-            user = user.equals("") ? "root" : user;
-            password = password.equals("") ? "root" : password;
+            url = url.isEmpty() ? "jdbc:postgresql://localhost:5432/chaos?sslmode=disable" : url;
+            user = user.isEmpty() ? "root" : user;
+            password = password.isEmpty() ? "root" : password;
         } else if (springProfiles.contains("mysql")) {
-            url = url.equals("") ? "jdbc:mysql://localhost:3306/chaos" : url;
-            user = user.equals("") ? "root" : user;
-            password = password.equals("") ? "" : password;
+            url = url.isEmpty() ? "jdbc:mysql://localhost:3306/chaos" : url;
+            user = user.isEmpty() ? "root" : user;
+            password = password.isEmpty() ? "" : password;
         } else if (springProfiles.contains("oracle")) {
-            url = url.equals("") ? "jdbc:oracle:thin:@//localhost:1521/freepdb1" : url;
-            user = user.equals("") ? "system" : user;
-            password = password.equals("") ? "root" : password;
+            url = url.isEmpty() ? "jdbc:oracle:thin:@//localhost:1521/freepdb1" : url;
+            user = user.isEmpty() ? "system" : user;
+            password = password.isEmpty() ? "root" : password;
         }
 
         properties.put("spring.datasource.url", url);
@@ -233,7 +233,7 @@ public class Main {
         output.info("Usage: java -jar chaos.jar [options] <workload>");
         output.info("");
 
-        output.headerOne("Common Options:");
+        output.header("Basic Options:");
         {
             output.printLeft("--help", "this help");
             output.printLeft("--verbose", "enable verbose SQL trace logging", "(false)");
@@ -242,7 +242,7 @@ public class Main {
             output.info("");
         }
 
-        output.headerOne("Connection Options:");
+        output.header("Connection Options:");
         {
             output.printLeft("--profile <db>", "database profile (url and credentials)", "(crdb)");
             output.printLeft("  crdb", "use CockroachDB via pgJDBC");
@@ -257,14 +257,14 @@ public class Main {
             output.info("");
         }
 
-        output.headerOne("DDL/DML Options:");
+        output.header("DDL/DML Options:");
         {
             output.printLeft("--skip-create", "skip DDL/create script at startup", "(false)");
             output.printLeft("--skip-init", "skip DML/init script at startup", "(false)");
             output.info("");
         }
 
-        output.headerOne("Common Workload Options:");
+        output.header("Common Workload Options:");
         {
             output.printLeft("--isolation", "set isolation level", "(1SR)");
 
@@ -282,8 +282,8 @@ public class Main {
             output.printLeft("--threads <num>", "max number of threads", "(host vCPUs x 2 = " + workers + ")");
             output.printLeft("--iterations <num>", "number of cycles to run", "(1K)");
             output.printLeft("--accounts <num>", "number of accounts to create and randomize between", "(50K)");
-            output.printLeft("--selection <num>", "random selection of accounts to pick between", "(500)");
-            output.info("  Hint: decrease selection to observe anomalies in read-committed.");
+            output.printLeft("--selection <num>", "random selection of accounts to pick from", "(500)");
+            output.info("  Hint: decrease selection to increase contention.");
             output.printLeft("--sequential", "sequential selection of accounts rather than random", "(false)");
             output.printLeft("--skip-retry", "skip client-side retries", "(false)");
             output.printLeft("--jitter", "enable exponential backoff jitter on client-side retries", "(false)");
@@ -291,14 +291,14 @@ public class Main {
             output.info("");
         }
 
-        output.headerOne("Specific Workload Options:");
+        output.header("Specific Workload Options:");
         {
             output.printLeft("--contention <num>", "contention level for the P4 lost update workload", "(2)");
             output.printLeft("--ratio <nun>", "read-write ratio for the P2 fuzzy read workload", "(.9)");
             output.info("");
         }
 
-        output.headerOne("Workload Types:");
+        output.header("Workload Types:");
         {
             EnumSet.allOf(WorkloadType.class)
                     .forEach(workloadType -> output.printLeft("  " + workloadType.name(), workloadType.alias()));

@@ -2,10 +2,10 @@ package io.roach.chaos;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-import io.roach.chaos.model.Dialect;
+import io.roach.chaos.repository.Dialect;
 import io.roach.chaos.model.IsolationLevel;
 import io.roach.chaos.model.LockType;
-import io.roach.chaos.model.WorkloadType;
+import io.roach.chaos.workload.WorkloadType;
 
 @ConfigurationProperties("chaos")
 public class Settings {

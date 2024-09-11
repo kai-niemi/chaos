@@ -71,8 +71,11 @@ public abstract class AbstractWorkload implements Workload {
             AtomicInteger c = new AtomicInteger();
             accountRepository.createAccounts(
                     new BigDecimal("500.00"), settings.getNumAccounts(),
-                    v -> AsciiArt.printProgressBar(settings.getNumAccounts(), c.addAndGet(v),
-                            "Creating %,d accounts".formatted(settings.getNumAccounts())));
+                    v -> AsciiArt.printProgressBar(
+                            settings.getNumAccounts(),
+                            c.addAndGet(v),
+                            "Creating %,d accounts".formatted(settings.getNumAccounts())
+                    ));
         }
 
         doBeforeExecutions();

@@ -13,29 +13,6 @@ public class Multiplier {
     private Multiplier() {
     }
 
-    public static double parseDouble(String expression) throws NumberFormatException {
-        if (expression == null) {
-            return 0.0;
-        }
-        expression = expression.replace("_", "");
-        Matcher matcher = DECIMAL_PATTERN.matcher(expression);
-        double value = 0;
-        while (matcher.find()) {
-            value = Double.parseDouble(matcher.group(1));
-            String token = matcher.group(2);
-            value = switch (token) {
-                case "k", "K" -> 1000 * value;
-                case "m", "M" -> 1_000_000 * value;
-                case "g", "G" -> 1_000_000_000 * value;
-                default -> throw new NumberFormatException("Invalid token " + token);
-            };
-        }
-        if (value == 0) {
-            return Double.parseDouble(expression);
-        }
-        return value;
-    }
-
     public static int parseInt(String expression) throws NumberFormatException {
         expression = expression.replace("_", "");
         Matcher matcher = LONG_PATTERN.matcher(expression);

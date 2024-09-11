@@ -3,11 +3,7 @@ package io.roach.chaos.util;
 import java.io.PrintStream;
 
 public class ColoredOutput implements Output {
-    private final PrintStream out;
-
-    public ColoredOutput() {
-        this.out = System.out;
-    }
+    private final PrintStream out = System.out;
 
     @Override
     public void separator(String title, char character, int width) {
@@ -22,17 +18,8 @@ public class ColoredOutput implements Output {
     }
 
     @Override
-    public void headerOne(String text) {
-        header(text, AnsiColor.BOLD_BRIGHT_CYAN);
-    }
-
-    @Override
-    public void headerTwo(String text) {
-        header(text, AnsiColor.BOLD_BRIGHT_PURPLE);
-    }
-
-    public void header(String text, AnsiColor color) {
-        print(text, color);
+    public void header(String text) {
+        print(text, AnsiColor.BOLD_BRIGHT_CYAN);
     }
 
     @Override
@@ -50,7 +37,7 @@ public class ColoredOutput implements Output {
         print(text, AnsiColor.BOLD_BRIGHT_PURPLE);
     }
 
-    public void print(String text, AnsiColor color) {
+    private void print(String text, AnsiColor color) {
         out.printf("%s%s%s\n", color.getCode(), text, AnsiColor.RESET.getCode());
     }
 
@@ -66,13 +53,6 @@ public class ColoredOutput implements Output {
         out.printf("%s%-30s ", AnsiColor.BOLD_BRIGHT_GREEN.getCode(), col1);
         out.printf("%s%s", AnsiColor.BOLD_BRIGHT_YELLOW.getCode(), col2);
         out.printf("%s %s%s", AnsiColor.BOLD_BRIGHT_PURPLE.getCode(), col3, AnsiColor.RESET.getCode());
-        out.println();
-    }
-
-    @Override
-    public void printRight(String col1, String col2) {
-        out.printf("%s%30s ", AnsiColor.BOLD_BRIGHT_GREEN.getCode(), col1);
-        out.printf("%s%s%s", AnsiColor.BOLD_BRIGHT_YELLOW.getCode(), col2, AnsiColor.RESET.getCode());
         out.println();
     }
 }

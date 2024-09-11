@@ -32,12 +32,11 @@ import io.roach.chaos.util.DatabaseInfo;
 import io.roach.chaos.util.Exporter;
 import io.roach.chaos.workload.Workload;
 
-
 @SpringBootApplication(exclude = {
         JdbcRepositoriesAutoConfiguration.class
 })
 public class Application implements ApplicationRunner {
-    protected final ColoredLogger logger = ColoredLogger.newInstance();
+    private final ColoredLogger logger = ColoredLogger.newInstance();
 
     @Autowired
     private DataSource dataSource;
@@ -58,7 +57,7 @@ public class Application implements ApplicationRunner {
 
         if (settings.getWorkers() <= 0) {
             settings.setWorkers(Runtime.getRuntime().availableProcessors() * 2);
-            logger.warn("Setting workers to %d".formatted(settings.getWorkers()));
+            logger.warn("Setting max threads to %d".formatted(settings.getWorkers()));
         }
 
         workload.validateSettings();
@@ -71,14 +70,19 @@ public class Application implements ApplicationRunner {
         }
 
         final ExecutorService executorService = Executors.newFixedThreadPool(settings.getWorkers());
-        final Instant startTime = Instant.now();
         final List<Duration> allDurations = new ArrayList<>();
         final AtomicInteger totalRetries = new AtomicInteger();
         int commits = 0;
         int fails = 0;
 
+        final Progress progress = new Progress()
+                .setStartTime(Instant.now())
+                .setTotal(settings.getIterations());
+
         try {
             workload.beforeAllExecutions();
+
+            final Instant startTime = Instant.now();
 
             final Deque<Future<List<Duration>>> futures = new ArrayDeque<>();
 
@@ -88,9 +92,15 @@ public class Application implements ApplicationRunner {
 
             // Await completion
             while (!futures.isEmpty()) {
-                AsciiArt.printProgressBar(settings.getIterations(),
-                        settings.getIterations() - futures.size(),
-                        futures.size() + " futures remain");
+                progress.setCurrent(settings.getIterations() - futures.size());
+                progress.setLabel("[%,d futures remain]".formatted(futures.size()));
+
+                AsciiArt.printProgressBar(
+                        progress.getTotal(),
+                        progress.getCurrent(),
+                        progress.getLabel(),
+                        progress.getCallsPerSec(),
+                        progress.getRemainingMillis());
 
                 try {
                     List<Duration> stats = futures.pop().get();
@@ -110,8 +120,8 @@ public class Application implements ApplicationRunner {
                 }
             }
 
-            printSettings(args);
-            printResults(Duration.between(startTime, Instant.now()), commits, fails, totalRetries.get(), allDurations);
+            printResults(Duration.between(startTime, Instant.now()),
+                    commits, fails, totalRetries.get(), allDurations);
             workload.afterAllExecutions();
         } finally {
             executorService.shutdownNow();
@@ -142,7 +152,7 @@ public class Application implements ApplicationRunner {
                     (k, v) -> logger.info(k + ": %s".formatted(v)));
             logger.info("Database Version: %s".formatted(version));
             logger.info("Driver Version: %s".formatted(driver));
-            logger.info("Database Isolation: %s".formatted(isolationLevel));
+            logger.info("Transaction Isolation: %s".formatted(isolationLevel));
         }
 
         logger.highlight("Workload Commons");
@@ -195,12 +205,26 @@ public class Application implements ApplicationRunner {
                 .boxed()
                 .toList();
 
+
+        logger.highlight("Workload Summary");
+        {
+            logger.info("Workload: %s".formatted(settings.getWorkloadType()));
+            logger.info("Account Total: %d".formatted(settings.getNumAccounts()));
+            logger.info("Account Selection: %d (%.1f%%)"
+                    .formatted(settings.getSelection(),
+                            (double) settings.getSelection() / (double) settings.getNumAccounts() * 100.0));
+            logger.info("Threads: %d".formatted(settings.getWorkers()));
+            logger.info("Iterations: %d".formatted(settings.getIterations()));
+            logger.info("Isolation Level: %s".formatted(settings.getIsolationLevel()));
+            logger.info("Lock Type: %s".formatted(settings.getLockType()));
+        }
+
         logger.highlight("Transactions");
         {
-            logger.info("Execution time: %s".formatted(duration));
-            logger.info("Total commits: %,d".formatted(commits));
-            logger.info("Total fails: %,d".formatted(fails));
-            logger.info("Total retries: %,d".formatted(totalRetries));
+            logger.info("Execution Time: %s".formatted(duration));
+            logger.info("Total Commits: %,d".formatted(commits));
+            logger.info("Total Fails: %,d".formatted(fails));
+            logger.info("Total Retries: %,d".formatted(totalRetries));
         }
 
         logger.highlight("Timings");
@@ -217,7 +241,7 @@ public class Application implements ApplicationRunner {
         }
 
         if (fails > 0) {
-            logger.error("There were %d non-transient errors that may invalidate the final outcome!".formatted(fails));
+            logger.error("There are %d non-transient errors that invalidates the final outcome!".formatted(fails));
         }
 
         if (settings.isExportCsv()) {

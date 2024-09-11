@@ -24,7 +24,7 @@ import io.roach.chaos.util.TransactionWrapper;
 
 @Note("P3 phantom read anomaly")
 public class PhantomRead extends AbstractWorkload {
-    private Collection<Account> accounts = List.of();
+    private Collection<Account> accountSelection = List.of();
 
     private final int repeatedReads = 10;
 
@@ -38,7 +38,7 @@ public class PhantomRead extends AbstractWorkload {
 
     @Override
     protected void doBeforeExecutions() {
-        this.accounts = accountRepository.findTargetAccounts(settings.getSelection(), settings.isRandomSelection());
+        this.accountSelection = accountRepository.findTargetAccounts(settings.getSelection(), settings.isRandomSelection());
     }
 
     @Override
@@ -66,7 +66,7 @@ public class PhantomRead extends AbstractWorkload {
             // Clear previous observations on retries
             observations.clear();
 
-            accounts.forEach(a -> {
+            accountSelection.forEach(a -> {
                 IntStream.rangeClosed(1, repeatedReads)
                         .forEach(value -> {
                             List<Account> accounts =
@@ -98,7 +98,7 @@ public class PhantomRead extends AbstractWorkload {
 
     private List<Duration> createRows() {
         TransactionCallback<Void> callback = status -> {
-            accounts.forEach(a -> {
+            accountSelection.forEach(a -> {
                 Account extra = new Account();
                 extra.setId(new Account.Id(a.getId().getId(), RandomData.randomString(32)));
                 extra.setBalance(BigDecimal.TEN);
@@ -118,7 +118,7 @@ public class PhantomRead extends AbstractWorkload {
 
     private List<Duration> deleteRows() {
         TransactionCallback<Void> callback = status -> {
-            accounts.forEach(a -> {
+            accountSelection.forEach(a -> {
                 accountRepository.deleteAccount(a.getId());
             });
             return null;
@@ -135,13 +135,12 @@ public class PhantomRead extends AbstractWorkload {
     public void afterAllExecutions() {
         logger.highlight("Consistency Check");
 
-        anomalies.forEach((id, balances) -> {
-            logger.error("Observed phantom values for key %s: %s".formatted(id, balances));
-        });
+        anomalies.forEach((id, balances) ->
+                logger.error("Observed phantom values for key %s: %s".formatted(id, balances)));
 
-        logger.info("Total selects: %d".formatted(selects.get()));
-        logger.info("Total inserts: %d".formatted(inserts.get()));
-        logger.info("Total deletes: %d".formatted(deletes.get()));
+        logger.info("Total Selects: %d".formatted(selects.get()));
+        logger.info("Total Inserts: %d".formatted(inserts.get()));
+        logger.info("Total Deletes: %d".formatted(deletes.get()));
 
         if (anomalies.isEmpty()) {
             logger.info("You are good! %s".formatted(AsciiArt.happy()));

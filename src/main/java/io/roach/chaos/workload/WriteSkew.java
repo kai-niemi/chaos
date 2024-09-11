@@ -90,8 +90,9 @@ public class WriteSkew extends AbstractWorkload {
     @Override
     public void afterAllExecutions() {
         logger.highlight("Consistency Check");
-        logger.info("Balance updates accepted: %d".formatted(accept.get()));
-        logger.info("Balance updates rejected: %d".formatted(reject.get()));
+
+        logger.info("Updates Accepted: %d".formatted(accept.get()));
+        logger.info("Updates Rejected: %d".formatted(reject.get()));
 
         AtomicInteger negativeAccounts = new AtomicInteger();
         AtomicReference<BigDecimal> total = new AtomicReference<>(BigDecimal.ZERO);
