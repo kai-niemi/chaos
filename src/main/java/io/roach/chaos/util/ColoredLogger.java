@@ -37,7 +37,7 @@ public class ColoredLogger {
     }
 
     public void warn(String format) {
-        ansiLogger.info("%s%s%s".formatted(AnsiColor.BRIGHT_YELLOW, format, AnsiColor.RESET));
+        ansiLogger.warn("%s%s%s".formatted(AnsiColor.BRIGHT_YELLOW, format, AnsiColor.RESET));
         standardLogger.warn(format);
     }
 

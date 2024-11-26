@@ -1,6 +1,6 @@
 # Chaos
 
-[![Java CI with Maven](https://github.com/cloudneutral/chaos/actions/workflows/maven.yml/badge.svg?branch=main)](https://github.com/cloudneutral/chaos/actions/workflows/maven.yml)
+[![Java CI with Maven](https://github.com/kai-niemi/chaos/actions/workflows/maven.yml/badge.svg?branch=main)](https://github.com/kai-niemi/chaos/actions/workflows/maven.yml)
 
 A small JDBC application for comparing the semantics of read-committed (RC) 
 and serializable (1SR) isolation levels in CockroachDB, PostgreSQL, MySQL 
@@ -173,7 +173,7 @@ Maven is used to build the project, bootstrapped by Tanuki Maven wrapper.
 
     ./mvnw clean install
 
-## Runing
+## Running
 
     java -jar target/chaos.jar --help
 

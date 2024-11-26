@@ -186,6 +186,11 @@ public class Application implements ApplicationRunner {
             logger.info("Lock Type: %s".formatted(settings.getLockType()));
             logger.info("Isolation Level: %s".formatted(settings.getIsolationLevel()));
             logger.info("Reported Isolation Level: %s".formatted(isolationLevel));
+
+            if (!isolationLevel.replace(" ", "_")
+                    .equalsIgnoreCase(settings.getIsolationLevel().name())) {
+                logger.warn("CAUTION: Configured and reported isolation level differs!!");
+            }
         }
     }
 
@@ -238,6 +243,20 @@ public class Application implements ApplicationRunner {
             logger.info("P95 latency: %.1f ms".formatted(percentile(allDurationMillis, .95)));
             logger.info("P99 latency: %.1f ms".formatted(percentile(allDurationMillis, .99)));
             logger.info("P999 latency: %.1f ms".formatted(percentile(allDurationMillis, .999)));
+        }
+
+        logger.highlight("Safety");
+        {
+            final String isolationLevel = workload.isolationLevel();
+
+            logger.info("Lock Type: %s".formatted(settings.getLockType()));
+            logger.info("Isolation Level: %s".formatted(settings.getIsolationLevel()));
+            logger.info("Reported Isolation Level: %s".formatted(isolationLevel));
+
+            if (!isolationLevel.replace(" ", "_")
+                    .equalsIgnoreCase(settings.getIsolationLevel().name())) {
+                logger.warn("CAUTION: Configured and reported isolation level differs!!");
+            }
         }
 
         if (fails > 0) {
