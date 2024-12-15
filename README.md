@@ -479,7 +479,7 @@ Read skew example:
     update account set balance = 12 where id = 1 and type = 'a'; -- T2
     update account set balance = 18 where id = 2 and type = 'b'; -- T2
     commit; -- T2
-    select * from account where id = 2 and type = 'b'; -- T1. Shows 2 => 18 which is A5b !!
+    select * from account where id = 2 and type = 'b'; -- T1. Shows 2 => 18 which is A5a/read skew !!
     commit; -- T1
 
 This will result in A5b anomalies:
