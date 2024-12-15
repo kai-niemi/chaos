@@ -294,7 +294,7 @@ public class Main {
         output.header("Specific Workload Options:");
         {
             output.printLeft("--contention <num>", "contention level for the P4 lost update workload", "(2)");
-            output.printLeft("--ratio <nun>", "read-write ratio for the P2 fuzzy read workload", "(.9)");
+            output.printLeft("--ratio <num>", "read-write ratio for the P2 fuzzy read workload", "(.9)");
             output.info("");
         }
 

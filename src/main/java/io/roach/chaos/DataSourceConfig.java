@@ -59,12 +59,12 @@ public class DataSourceConfig {
                 .initializeDataSourceBuilder()
                 .type(HikariDataSource.class)
                 .build();
+        ds.setAutoCommit(true);
+        ds.setInitializationFailTimeout(-1);
+        ds.setTransactionIsolation("TRANSACTION_" + settings.getIsolationLevel().name());
 
         ds.addDataSourceProperty("reWriteBatchedInserts", "true");
         ds.addDataSourceProperty("application_name", "Chaos");
-        ds.setTransactionIsolation("TRANSACTION_" + settings.getIsolationLevel().name());
-        ds.setAutoCommit(true);
-        ds.setInitializationFailTimeout(-1);
 
         if (ds.getJdbcUrl().startsWith("jdbc:cockroachdb")) {
             ds.setDriverClassName("io.cockroachdb.jdbc.CockroachDriver");

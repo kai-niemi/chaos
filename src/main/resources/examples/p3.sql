@@ -2,6 +2,7 @@ insert into account (id, type, balance)
 values (1, 'a', 100.00),
        (1, 'b', 100.00),
        (1, 'c', 100.00);
+
 begin; -- t1
 set transaction isolation level read committed; -- t1
 begin; -- t2

@@ -1,3 +1,28 @@
+<!-- TOC -->
+* [Chaos](#chaos)
+* [How it works](#how-it-works)
+  * [Further Resources](#further-resources)
+* [Building and Running](#building-and-running)
+  * [Prerequisites](#prerequisites)
+    * [Building](#building)
+    * [Running](#running)
+  * [Install the JDK](#install-the-jdk)
+  * [Database Setup](#database-setup)
+    * [CockroachDB Setup](#cockroachdb-setup)
+    * [PostgreSQL Setup](#postgresql-setup)
+    * [MySQL Setup](#mysql-setup)
+    * [Oracle Setup](#oracle-setup)
+  * [Building](#building-1)
+  * [Running](#running-1)
+* [Workloads](#workloads)
+  * [Lost Update (P4)](#lost-update-p4)
+  * [Non-Repeatable Read (P2)](#non-repeatable-read-p2)
+  * [Phantom Read (P3)](#phantom-read-p3)
+  * [Write Skew (A5b)](#write-skew-a5b)
+  * [Read Skew (A5a)](#read-skew-a5a)
+* [Terms of Use](#terms-of-use)
+<!-- TOC -->
+
 # Chaos
 
 [![Java CI with Maven](https://github.com/kai-niemi/chaos/actions/workflows/maven.yml/badge.svg?branch=main)](https://github.com/kai-niemi/chaos/actions/workflows/maven.yml)
@@ -6,22 +31,22 @@ A small JDBC application for comparing the semantics of read-committed (RC)
 and serializable (1SR) isolation levels in CockroachDB, PostgreSQL, MySQL 
 and Oracle.
 
-Specifically by observing application impact around:
+Specifically by observing the application impact on:
 
-- Number of retries and time spent retrying: 
+- Number of retries and time spent in retrying
   - Frequency of concurrency errors and transient SQL exceptions (code 40001 or 40P01)
-- Performance impact by:
+- Performance impact
   - Weaker vs stronger isolation
   - Pessimistic locking using `FOR UPDATE` or `FOR SHARE`
   - Optimistic locking using compare-and-set (CAS)
-- Correctness when exposed to the following anomalies:
+- Correctness when exposed to anomalies
   - P4 lost update 
   - P2 non-repeatable / fuzzy read 
   - P3 phantom read 
   - A5A read skew 
   - A5B write skew 
 
-Isolation levels characterised by the phenomena they allow or prevent:
+Isolation levels are characterised by the phenomenaw they eiher allow or prevent.
 
 |                  | Default Isolation | P0 D.Write   | P1 D.Read    | P4C C.Lost Update | P4 Lost Update     | P2 Fuzzy Read      | P3 Phantom Read    | A5A Read Skew | A5B Write Skew     |
 |------------------|-------------------|--------------|--------------|-------------------|--------------------|--------------------|--------------------|---------------|--------------------|
@@ -36,23 +61,24 @@ Isolation levels characterised by the phenomena they allow or prevent:
 
 # How it works
 
-The application is intentionally designed to cause pathological workload contention 
-by concurrently updating an overlapping set of keys in a conflicting order and using
-aggregate functions in queries (thus more subject to skewed observations). 
+Chaos is designed to cause pathological workload contention by concurrently updating 
+an overlapping set of keys in a conflicting order and using aggregate functions in 
+queries, thus becoming more subject to skewed reads. 
 
-The purpose is to observe the application impact on correctness and performance while
-running the workloads and playing around with isolation levels and locking strategy,
-as outlined above.
+The purpose of this design is to observe the application impact on correctness and 
+performance while running different workloads and playing around with isolation 
+levels and locking strategies.
 
-The workloads are simple and centered around a single `account` table simulating 
-bank accounts (see more below). In the end of each run, certain consistency checks
-are performed to verify that the accounts remain in a correct state and not in 
-breaching of any invariants. 
+The workloads (one for each anomaly type) are simple and centered around a 
+single `account` table simulating bank accounts (see more below). In the end of 
+each run, certain consistency checks are performed to verify that the accounts 
+remain in a correct state and not in breach of any invariants. 
 
 Inconsistent outcomes will occur when runnning in weaker isolation levels than 1SR 
 and not using any locking strategy. That is the general tradeoff with weaker isolation, 
-that you risk incorrect outcomes unless taking certain measures application-side 
-like using optimistic or pessmistic locking. 
+that you risk incorrect results unless taking certain measures application-side 
+like using optimistic or pessmistic locking. Incorrect results can mean data loss,
+wrong numbers in financial reports and other hard to find errors.
 
 ## Further Resources
 
@@ -181,77 +207,141 @@ For more examples, see workload samples below.
 
 # Workloads
 
-A description of the different anomalies manifested (and prevented) in Chaos.
+A description of the different anomalies manifested and prevented by Chaos.
 
 ## Lost Update (P4)
 
 > A lost update happens when one transaction overwrites the changes made by another transaction.
 
-Examples:
-    
-    java -jar target/chaos.jar --isolation rc lost_update
-    java -jar target/chaos.jar --url "jdbc:postgresql://192.168.1.2:5432/chaos" --profile psql lost_update 
+This anomaly is common in systems where concurrent modifications are possible, including 
+financial systems, e-commerce systems or any scenario involving shared resources. 
+In particular for a typical read-modify-write scenario where data is being read, 
+modified by some business rule and changes are being written back. ORM frameworks 
+usually follow this pattern more prevalently than other data access strategies.
 
-This workload concurrently executes the following statements (at minimum 4) using 
-explicit transactions and N threads:
+To visualize P4, this workload concurrently executes the following statements 
+using explicit transactions:
 
-    BEGIN; 
+    BEGIN; -- T1 .. TN 
     SELECT balance from account where id=1;
     SELECT balance from account where id=2;
-    UPDATE account set balance=? where id = 1; -- balace @1 + 5
+    UPDATE account set balance=? where id = 1; -- balance @1 + 5
     UPDATE account set balance=? where id = 2; -- balance @2 - 5
     COMMIT;
 
-The interleaving hopefully results in a conflicting order of operations 
-causing the database to rollback transactions with a transient, retryable errors 
-(40001 code) when running under 1SR. When running under RC it results in lost updates
-(as expected) unless a locking strategy is applied (see --locking).
+The interleaving of the concurrent transactions will at some point result in a 
+conflicting order of operations causing the database to rollback transactions 
+with a transient, retryable errors (40001 code) when running under 1SR. 
 
-This workload is unsafe in RC unless using optimistic "locks" through a CAS operation
-(version increments) or by using pessimistic `SELECT .. FOR UPDATE/SHARE` locks at read time.
+When running under RC however, the result in a P4 lost update (expected) instead 
+unless some locking strategy is applied (with `--locking`). In other words, this 
+type of workload is completely _unsafe_ in RC unless using either:
+
+- Optimistic "locks" through a CAS operation (version increments)
+- Pessimistic `SELECT .. FOR UPDATE` locks at read time
+
+Assume the following schema and initial data:
+
+    create table account (
+      id       int            not null,
+      balance  numeric(19, 2) not null,
+      primary key (id)
+    );
+    
+    -- Run between each test
+    delete from account where 1=1;
+    insert into account (id, balance) values (1, 100.00), (2,  200.00);
+
+CockroachDB "serializable" prevents Lost Update (P4):
+
+    begin; set transaction isolation level serializable; -- T1
+    begin; set transaction isolation level serializable; -- T2
+    select * from account where id = 1; -- T1
+    select * from account where id = 1; -- T2
+    update account set balance = 11 where id = 1; -- T1
+    update account set balance = 22 where id = 1; -- T2, BLOCKS on T1
+    commit; -- T1. T2 now prints out "ERROR: restart transaction: TransactionRetryWithProtoRefreshError: WriteTooOldError"
+    abort;  -- T2. There's nothing else we can do, this transaction has failed
+
+CockroachDB "read committed" with SFU also prevents Lost Update (P4):
+
+    begin; set transaction isolation level read committed; -- T1
+    begin; set transaction isolation level read committed; -- T2
+    select * from account where id = 1 FOR UPDATE; -- T1
+    select * from account where id = 1 FOR UPDATE; -- T2, BLOCKS
+    update account set balance = 11 where id = 1; -- T1
+    commit; -- T1. This unblocks T2, which reads T1's update (11)
+    update account set balance = 22 where id = 1; -- T2
+    commit; -- T2
+ 
+CockroachDB "read committed" without SFU permits Lost Update (P4), which
+unless intentional, may cause a `(ノಠ益ಠ)ノ彡┻━┻` reaction later:
+
+    begin; set transaction isolation level read committed; -- T1
+    begin; set transaction isolation level read committed; -- T2
+    select * from account where id = 1; -- T1
+    select * from account where id = 1; -- T2
+    update account set balance = 11 where id = 1; -- T1
+    commit; -- T1
+    update account set balance = 22 where id = 1; -- T2, overwriting T1's update from 100 to 11 which is "lost" !
+    commit; -- T2 
+
+The level of contention can be adjusted by increasing the number of account tuples,
+number of concurrent executors, or by reducing the selection of account IDs involved 
+in the interleaving. 
+
+This allows for creating a high number of accounts spanning many ranges (CockroachDB term) 
+while still being able to cause contention.
+
+This will result in P4 anomalies:
+
+    java -jar target/chaos.jar --isolation rc lost_update
 
 Ex:
 
-    BEGIN; --T1 
-    BEGIN; --T2 
-    SELECT balance from account where id=1; --T1
-    SELECT balance from account where id=1; --T2
-    SELECT balance from account where id=2; --T1
-    UPDATE account set balance=? where id = 1; -- T1
-    SELECT balance from account where id=2; --T2
-    UPDATE account set balance=? where id = 2; -- T1
-    COMMIT; --T1
-    UPDATE account set balance=? where id = 1; -- T2
-    UPDATE account set balance=? where id = 2; -- T2
-    COMMIT; --T2
+    14:16:25.336  INFO [main] --- Consistency Check ---
+    14:16:25.356  INFO [main] Initial total balance:         25000000.00
+    14:16:25.356  INFO [main] Final total balance:           24999917.16
+    14:16:25.356  INFO [main] 25000000.00 != 24999917.16 (ノಠ益ಠ)ノ彡┻━┻
+    14:16:25.356  INFO [main] You just lost 82.84 and may want to reconsider your isolation level!! (or use locking)
 
-The level of contention can be adjusted by increasing the number of account tuples,
-number of concurrent executors or by reducing the selection of account IDs involved 
-in the interleaving. This allows for creating a high number of accounts spanning 
-many ranges while still being able to cause contention.
+This will result in a correct outcome:
+
+    java -jar target/chaos.jar --isolation 1sr lost_update
+
+Ex:
+
+    14:17:24.499  INFO [main] --- Consistency Check ---
+    14:17:24.519  INFO [main] Initial total balance:         25000000.00
+    14:17:24.519  INFO [main] Final total balance:           25000000.00
+    14:17:24.519  INFO [main] You are good! (ʘ‿ʘ)
+    14:17:24.519  INFO [main] To observe anomalies, try read-committed without locking (--isolation rc)
 
 ## Non-Repeatable Read (P2)
 
-Also called a fuzzy read and described as:
+Also called a _fuzzy read_ and described as:
 
-> A non-repeatable read occurs, when during the course of a transaction, a row is retrieved twice and the values within the row differ between reads.
+> A non-repeatable read occurs, when during the course of a transaction, 
+> a row is retrieved twice and the values within the row differ between reads.
 
-Example:
+Fuzzy reads are allowed in RC but prohibited in 1SR.
 
+    delete from account where 1=1;
+    insert into account (id, type, balance)
+    values (1, 'checking', 100.00);
+    
     begin; -- t1
     set transaction isolation level read committed; -- t1
     begin; -- t2
     set transaction isolation level read committed; -- t2
     SELECT balance FROM account WHERE id = 1 AND type = 'checking'; -- t1 100
-    SELECT balance FROM account WHERE id = 1 AND type = 'checking'; -- t1 100
-    SELECT balance FROM account WHERE id = 1 AND type = 'checking'; -- t1 100
     UPDATE account SET balance = 50 WHERE id = 1 and type='checking'; -- t2
     SELECT balance FROM account WHERE id = 1 AND type = 'checking'; -- t1 100
     commit; -- t2
-    SELECT balance FROM account WHERE id = 1 AND type = 'checking'; -- t1 50  (P2 anomaly !!)
+    SELECT balance FROM account WHERE id = 1 AND type = 'checking'; -- t1 (if 50 then its a P2 violation !!)
     commit; -- t1
 
-This will result in anomalies:
+This will result in P2 anomalies:
 
     java -jar target/chaos.jar --profile crdb --isolation rc --selection 10 --accounts 100 --iterations 100 p2
 
@@ -261,11 +351,12 @@ This will result in a correct outcome:
 
 ## Phantom Read (P3)
 
-> A phantom read occurs when, in the course of a transaction, two identical queries are executed, and the collection of rows returned by the second query is different from the first.
+> A phantom read occurs when, in the course of a transaction, two identical queries are executed,
+> and the collection of rows returned by the second query is different from the first.
 
 In other words, the predicate is unstable when repeating the read.
 
-Example:
+Phantom reads are allowed in RC but prohibited in 1SR.
 
     insert into account (id, type, balance)
     values (1, 'a', 100.00),
@@ -279,10 +370,10 @@ Example:
     select * from account where id = 1; -- t1 (3 rows)
     insert into account (id, type, balance) values (1, 'd', 100.00); -- t2
     commit; -- t2
-    select * from account where id = 1; -- t1 (must be 3 rows and if 4 then its a p3 violation !!)
+    select * from account where id = 1; -- t1 (must be 3 rows but if 4 then its a p3 violation !!)
     commit; -- t1
 
-This will result in anomalies:
+This will result in P3 anomalies:
 
     java -jar target/chaos.jar --profile crdb --isolation rc --selection 10 --accounts 100 --iterations 100 p3
 
@@ -296,20 +387,20 @@ This will result in a correct outcome:
 > a table by two different writers (who have previously read the columns they are updating), 
 > resulting in the column having data that is a mix of the two transactions.
 
-Examples:
-
-    java -jar target/chaos.jar --isolation rc --selection 20 write_skew
-    java -jar target/chaos.jar --url "jdbc:postgresql://localhost:5432/chaos" --profile psql --isolation rc write_skew 
+This subtle anomaly is called write skew, which is prevented in 1SR but allowed in RC. It
+is also allowed in snapshot isolation (SI) that Oracle labels as serializable (for historical reasons).
+If you start to feel confused at this point, you are not alone.
 
 In this workload, accounts are organized in tuples where the same surrogate id is shared by a
 checking and credit account. The composite primary key is `id,type`. The business rule (invariant)
-is that the account balances can be negative or positive as long as the sum of both accounts is be >= 0.
+is that the account balances can be negative or positive as long as the sum of both accounts 
+is >= 0.
 
-| id | type     | balance |
-|----|----------|---------|
-| 1  | checking | -5.00   |
-| 1  | credit   | 10.00   |
-| Σ  | -        | +5.00   | 
+| id | type     | balance     |
+|----|----------|-------------|
+| 1  | checking | -5.00       |
+| 1  | credit   | 10.00       |
+| Σ  | -        | +5.00  (ok) | 
 
 Write skew can happen if `T1` and `T2` reads the total balance (which is >0 ) and
 independently writes a new balance to different rows.
@@ -332,11 +423,10 @@ Assume transaction `T1` and `T2`:
 | commit; --ok                                                                       |                                                                                     | 
 |                                                                                    | commit; -- ok (not allowed in 1SR)                                                  | 
 
-Both transactions are correct in isolation but when put together the total sum is `-5.00` (rule violation)
-since they were both allowed to commit. This subtle anomaly is called write skew, which is prevented
-in 1SR but allowed in RC.
+Both transactions are "correct" in isolation, but when put together the total sum is `-5.00` since 
+they were both allowed to commit. 
 
-In summary, this workload concurrently executes the following statements (using pseudo-code):
+In summary, this workload concurrently executes the following statements (pseduo-code):
 
     BEGIN; 
     SELECT sum(balance) total from account where id=<random from selection>; -- expect 2 rows
@@ -348,12 +438,20 @@ In summary, this workload concurrently executes the following statements (using 
     endif
     COMMIT;
 
-This workload is therefore unsafe in RC unless using optimistic "locking" through a CAS operation
-(version increments). Notice that pessimistic locks can't be used due to the
-aggregate `sum` function.
+This workload is therefore unsafe in RC unless using optimistic "locking" through a CAS 
+operation with version increments. Notice that pessimistic locks can't be used here 
+due to the aggregate `sum` function.
 
-**Hint:** To have a greater chance to observe anomalies in RC, decrease the `--selection` and/or
+This will result in A5b anomalies:
+
+    java -jar target/chaos.jar --isolation rc --selection 20 write_skew
+
+**Hint:** If you don't observe any anomalies in RC, decrease the `--selection` and/or
 increase `--iterations` with 10x.
+
+This will result in a correct outcome:
+
+    java -jar target/chaos.jar --isolation 1sr --selection 20 write_skew
 
 ## Read Skew (A5a)
 
@@ -361,15 +459,36 @@ increase `--iterations` with 10x.
 > data because between the 1st and 2nd queries, other transactions insert, 
 > update or delete data and commit.
 
-Examples:
-
-    java -jar target/chaos.jar --isolation rc --selection 20 read_skew
-    java -jar target/chaos.jar --url "jdbc:postgresql://localhost:5432/chaos" --profile psql --isolation rc read_skew 
-
 This workload is similar to write skew where the account balances are read in separate statements
 and the sum is expected to remain constant. Under RC without locks, it's allowed to read values
-committed by other concurrent transactions and thereby observe deviations. Under 1SR, this is
-prevented and results in a transient rollback error.
+committed by other concurrent transactions and thereby observe deviations (this can be avoided 
+with FOR SHARE locks). Under 1SR, this is prohibited and results in a transient rollback error.
+
+Read skew example:
+
+    delete from account where 1=1;
+    insert into account (id, type, balance)
+    values (1, 'a', 100.00),
+    (2, 'b', 200.00);
+    
+    begin; set transaction isolation level read committed; -- T1
+    begin; set transaction isolation level read committed; -- T2
+    select * from account where id = 1 and type = 'a'; -- T1. Shows 1 => 100
+    select * from account where id = 1 and type = 'a'; -- T2. Shows 1 => 100
+    select * from account where id = 2 and type = 'b'; -- T2. Shows 2 => 200
+    update account set balance = 12 where id = 1 and type = 'a'; -- T2
+    update account set balance = 18 where id = 2 and type = 'b'; -- T2
+    commit; -- T2
+    select * from account where id = 2 and type = 'b'; -- T1. Shows 2 => 18 which is A5b !!
+    commit; -- T1
+
+This will result in A5b anomalies:
+
+    java -jar target/chaos.jar --isolation rc --selection 20 read_skew
+
+This will result in a correct outcome:
+
+    java -jar target/chaos.jar --isolation 1sr --selection 20 read_skew
 
 # Terms of Use
 
