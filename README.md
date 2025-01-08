@@ -46,7 +46,7 @@ Specifically by observing the application impact on:
   - A5A read skew 
   - A5B write skew 
 
-Isolation levels are characterised by the phenomenaw they eiher allow or prevent.
+Isolation levels are characterised by the phenomenas they either allow or prevent.
 
 |                  | Default Isolation | P0 D.Write   | P1 D.Read    | P4C C.Lost Update | P4 Lost Update     | P2 Fuzzy Read      | P3 Phantom Read    | A5A Read Skew | A5B Write Skew     |
 |------------------|-------------------|--------------|--------------|-------------------|--------------------|--------------------|--------------------|---------------|--------------------|

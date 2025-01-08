@@ -185,12 +185,6 @@ public class Application implements ApplicationRunner {
         {
             logger.info("Lock Type: %s".formatted(settings.getLockType()));
             logger.info("Isolation Level: %s".formatted(settings.getIsolationLevel()));
-            logger.info("Reported Isolation Level: %s".formatted(isolationLevel));
-
-            if (!isolationLevel.replace(" ", "_")
-                    .equalsIgnoreCase(settings.getIsolationLevel().name())) {
-                logger.warn("CAUTION: Configured and reported isolation level differs!!");
-            }
         }
     }
 
